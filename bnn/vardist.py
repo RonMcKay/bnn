@@ -18,7 +18,7 @@ class VariationalDistribution(nn.Module):
         raise NotImplementedError('Probability density function has to be implemented!')
     
 class DiagonalNormal(VariationalDistribution):
-    def __init__(self, mean=torch.tensor(0.0), rho=torch.tensor(math.log(math.exp(1)-1))):
+    def __init__(self, mean=torch.tensor(0.0), rho=torch.tensor(0.0)):
         super().__init__()
         self.mean = nn.Parameter(mean)
         
@@ -27,19 +27,20 @@ class DiagonalNormal(VariationalDistribution):
         self.rho = nn.Parameter(rho)
         
     def sample(self):
-        std_dev = self.rho.exp().add(1).log()
+        std_dev = self.rho.exp()
         return self.mean + std_dev * torch.randn_like(self.rho)
     
     def pdf(self, sample):
         if sample.size() != self.mean.size():
             raise ValueError('sample does not match with the distribution shape')
-        var = self.rho.exp().add(1).log().pow(2)
+        var = self.rho.exp().pow(2)
         return sample.sub(self.mean).pow(2).div(-2.0*var).exp().div((2*math.pi*var).sqrt())
     
     def log_prob(self, sample):
         if sample.size() != self.mean.size():
+            print(sample.size(), self.mean.size())
             raise ValueError('sample does not match with the distribution shape')
-        var = self.rho.exp().add(1).log().pow(2)
+        var = self.rho.exp().pow(2)
         log_prob = (torch.log(2.0*math.pi*var) + sample.sub(self.mean).pow(2).div(var)).div(-2.0)
         return log_prob
             
