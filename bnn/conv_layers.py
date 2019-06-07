@@ -1,9 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from .general import BayesianLayer
 from torch.nn.modules.utils import _single, _pair, _triple
 
-class _ConvNd(nn.Module):
+class _BConvNd(BayesianLayer):
     def __init__(self, in_channels, out_channels, kernel_size, prior, var_dist,
                  stride, padding, dilation, transposed, output_padding,
                  groups, bias, padding_mode):
@@ -29,7 +30,7 @@ class _ConvNd(nn.Module):
     def extra_repr(self):
         return nn.Module.extra_repr(self)
     
-class Conv1d(_ConvNd):
+class BConv1d(_BConvNd):
     """Applies a 1D Bayesian convolution over an input signal composed of several input planes.
     """
     def __init__(self, in_channels, out_channels, kernel_size, prior, var_dist,
@@ -46,7 +47,7 @@ class Conv1d(_ConvNd):
     def forward(self, input):
         raise NotImplementedError('Has to be implemented!')
     
-class Conv2d(_ConvNd):
+class BConv2d(_BConvNd):
     """Applies a 2d Bayesian convolution over an input signal composed of several input planes.
     """
     def __init__(self, in_channels, out_channels, kernel_size, prior, var_dist,
