@@ -8,6 +8,7 @@ from .general import BayesianLayer
 from .vardist import VariationalDistribution
 from .vardist import DiagonalNormal
 from .priordist import DiagonalNormal as PriorNormal
+from .priordist import Laplace
 import logging
 
 class BLinear(BayesianLayer):
@@ -21,18 +22,16 @@ class BLinear(BayesianLayer):
         self.out_features = out_features
                 
         if prior is None:
-            self.prior = PriorNormal(loc=torch.zeros((out_features, in_features)),
-                                     scale=torch.full((out_features, in_features), 1.05))
-        elif not isinstance(prior, Distribution):
-            self.log.error('prior has to be a pytorch distribution')
-            raise ValueError('prior has to be a pytorch distribution')
+            self.prior = PriorNormal(loc=0,
+                                     scale=0.1)
         else:
             self.prior = prior
         
         if var_dist is None:
-            std = 1.0 / math.sqrt(self.out_features)
-            self.var_dist = DiagonalNormal(mean=torch.Tensor(out_features, in_features).uniform_(-std, std),
-                                           rho=torch.full((out_features, in_features), 0.05))
+#             std = 1.0 / math.sqrt(self.out_features)
+            std = math.sqrt(6.0 / self.out_features)
+            self.var_dist = DiagonalNormal(loc=torch.Tensor(out_features, in_features).uniform_(-0.1, 0.1),
+                                           rho=torch.Tensor(out_features, in_features).uniform_(-2.5, -2))
         elif not isinstance(var_dist, VariationalDistribution):
             self.log.error('var_dist has to be a variational distribution')
             raise ValueError('var_dist has to be a variational distribution')
@@ -42,18 +41,15 @@ class BLinear(BayesianLayer):
         self.bias = bias
         if self.bias:
             if bias_prior is None:
-                self.bias_prior = PriorNormal(loc=torch.zeros((out_features,)),
-                                              scale=torch.full((out_features,), 1.05))
-            elif not isinstance(bias_prior, Distribution):
-                self.log.error('bias_prior has to be a pytorch distribution')
-                raise ValueError('bias_prior has to be a pytorch distribution')
+                self.bias_prior = PriorNormal(loc=0,
+                                              scale=0.1)
             else:
                 self.bias_prior = bias_prior
         
             if bias_var_dist is None:
-                std = 1.0 / math.sqrt(self.out_features)
-                self.bias_var_dist = DiagonalNormal(mean=torch.Tensor(out_features).uniform_(-std, std),
-                                                    rho=torch.full((out_features,), 0.05))
+                std = math.sqrt(6.0 / self.out_features)
+                self.bias_var_dist = DiagonalNormal(loc=torch.Tensor(out_features).uniform_(-0.1, 0.1),
+                                                    rho=torch.Tensor(out_features).uniform_(-2.5, -2))
             elif not isinstance(bias_var_dist, VariationalDistribution):
                 self.log.error('bias_var_dist has to be a variational distribution')
                 raise ValueError('bias_var_dist has to be a variational distribution')
@@ -61,7 +57,7 @@ class BLinear(BayesianLayer):
                 self.bias_var_dist = bias_var_dist
         
     def reset_parameters(self):
-        raise NotImplementedError('Has to be implemented!')
+        raise NotImplementedError('Has to be implemented!')        
     
     def forward(self, input):
         # sample weights and bias
@@ -69,11 +65,12 @@ class BLinear(BayesianLayer):
         
         if self.bias:
             bias = self.bias_var_dist.sample()
-            
-        output = F.linear(input, weights, bias)
-        
-        kl = (self.var_dist.log_prob(weights) - self.prior.log_prob(weights)).sum() \
-            + (self.bias_var_dist.log_prob(bias) - self.bias_prior.log_prob(bias)).sum()
+            output = F.linear(input, weights, bias)
+        else:
+            output = F.linear(input, weights)
+                    
+        kl = ((self.var_dist.log_prob(weights).sum() - self.prior.log_prob(weights).sum()) \
+            + (self.bias_var_dist.log_prob(bias).sum() - self.bias_prior.log_prob(bias).sum()))
             
         return output, kl
     

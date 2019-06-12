@@ -1,5 +1,7 @@
 import torch
+import numpy as np
 import torch.nn as nn
+import torch.nn.functional as F
 
 class BayesianLayer(nn.Module):
     def __init__(self):
@@ -8,9 +10,13 @@ class BayesianLayer(nn.Module):
 class KLLoss(nn.Module):
     def __init__(self):
         super().__init__()
+#         self.likelihood_cost = nn.CrossEntropyLoss(reduction='none')
         self.likelihood_cost = nn.CrossEntropyLoss()
         
-    def forward(self, output, target, kl, batch_weight):
-        loss = self.likelihood_cost(output, target)
+    def forward(self, outputs, target, kl, batch_weight):
+        loss = []
+        for i in range(outputs.size(0)):
+            loss.append(self.likelihood_cost(outputs[i], target))
+        loss = torch.stack(loss).mean()
         
         return batch_weight * kl + loss

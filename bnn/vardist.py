@@ -18,30 +18,27 @@ class VariationalDistribution(nn.Module):
         raise NotImplementedError('Probability density function has to be implemented!')
     
 class DiagonalNormal(VariationalDistribution):
-    def __init__(self, mean=torch.tensor(0.0), rho=torch.tensor(0.0)):
+    def __init__(self, loc=torch.tensor(0.0), rho=torch.tensor(0.0)):
         super().__init__()
-        self.mean = nn.Parameter(mean)
-        
-        # standard deviation is parameterized as in
-        #'Weight Uncertainty in Neural Networks' by Blundell et. al
+        self.loc = nn.Parameter(loc)
         self.rho = nn.Parameter(rho)
         
     def sample(self):
-        std_dev = self.rho.exp()
-        return self.mean + std_dev * torch.randn_like(self.rho)
+        std_dev = F.softplus(self.rho).add(1e-6)
+        return self.loc + std_dev * torch.randn_like(self.rho)
     
     def pdf(self, sample):
-        if sample.size() != self.mean.size():
+        if sample.size() != self.loc.size():
             raise ValueError('sample does not match with the distribution shape')
-        var = self.rho.exp().pow(2)
-        return sample.sub(self.mean).pow(2).div(-2.0*var).exp().div((2*math.pi*var).sqrt())
+        std_dev = F.softplus(self.rho).add(1e-6)
+        return sample.sub(self.loc).div(std_dev).pow(2).div(-2.0).exp().div((2*math.pi).sqrt()*std_dev)
     
     def log_prob(self, sample):
-        if sample.size() != self.mean.size():
-            print(sample.size(), self.mean.size())
+        if sample.size() != self.loc.size():
+            print(sample.size(), self.loc.size())
             raise ValueError('sample does not match with the distribution shape')
-        var = self.rho.exp().pow(2)
-        log_prob = (torch.log(2.0*math.pi*var) + sample.sub(self.mean).pow(2).div(var)).div(-2.0)
+        std_dev = F.softplus(self.rho).add(1e-6)
+        log_prob = torch.log(torch.tensor(2.0*math.pi)).div(-2.0) - std_dev.log() - sample.sub(self.loc).div(std_dev).pow(2).div(2.0)
         return log_prob
             
     
