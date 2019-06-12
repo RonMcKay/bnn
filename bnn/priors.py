@@ -72,5 +72,11 @@ class GaussianMixture(PriorDistribution):
         self.normal2 = DiagonalNormal(loc=0, scale=self.sigma2)
         
     def log_prob(self, value):
-        return self.pi * self.normal1.log_prob(value) \
-            + (1-self.pi) * self.normal2.log_prob(value)
+        logprob1 = self.normal1.log_prob(value)
+        logprob2 = self.normal2.log_prob(value)
+
+        # Numerical stability trick -> unnormalising logprobs will underflow otherwise
+        # from: https://github.com/JavierAntoran/Bayesian-Neural-Networks
+        max_logprob = torch.min(logprob1, logprob2)
+        normalised_probs = self.pi + torch.exp(logprob1 - max_logprob) + (1-self.pi) + torch.exp(logprob2 - max_logprob)
+        logprob = torch.log(normalised_probs) + max_logprob
