@@ -58,18 +58,18 @@ class GaussianMixture(PriorDistribution):
     """
     def __init__(self, sigma1, sigma2, pi):
         super().__init__()
-        if not isinstance(sigma1, torch.FloatTensor):
-            sigma1 = torch.tensor(sigma1, dtype=torch.float)
-        if not isinstance(sigma2, torch.FloatTensor):
-            sigma2 = torch.tensor(sigma2, dtype=torch.float)
+#         if not isinstance(sigma1, torch.FloatTensor):
+#             sigma1 = torch.tensor(sigma1, dtype=torch.float)
+#         if not isinstance(sigma2, torch.FloatTensor):
+#             sigma2 = torch.tensor(sigma2, dtype=torch.float)
         if not isinstance(pi, torch.FloatTensor):
             pi = torch.tensor(pi, dtype=torch.float)
-        self.register_buffer('sigma1', sigma1.clone())
-        self.register_buffer('sigma2', sigma2.clone())
+#         self.register_buffer('sigma1', sigma1.clone())
+#         self.register_buffer('sigma2', sigma2.clone())
         self.register_buffer('pi', pi.clone())
         
-        self.normal1 = DiagonalNormal(loc=0, scale=self.sigma1)
-        self.normal2 = DiagonalNormal(loc=0, scale=self.sigma2)
+        self.normal1 = DiagonalNormal(loc=0, scale=sigma1)
+        self.normal2 = DiagonalNormal(loc=0, scale=sigma2)
         
     def log_prob(self, value):
         logprob1 = self.normal1.log_prob(value)
@@ -77,6 +77,7 @@ class GaussianMixture(PriorDistribution):
 
         # Numerical stability trick -> unnormalising logprobs will underflow otherwise
         # from: https://github.com/JavierAntoran/Bayesian-Neural-Networks
-        max_logprob = torch.min(logprob1, logprob2)
-        normalised_probs = self.pi + torch.exp(logprob1 - max_logprob) + (1-self.pi) + torch.exp(logprob2 - max_logprob)
+        max_logprob = torch.max(logprob1, logprob2)
+        normalised_probs = self.pi * torch.exp(logprob1 - max_logprob) + (1-self.pi) * torch.exp(logprob2 - max_logprob)
         logprob = torch.log(normalised_probs) + max_logprob
+        return logprob
