@@ -57,26 +57,24 @@ class BLinear(BayesianLayer):
                 raise ValueError('bias_posterior has to be a variational distribution')
             else:
                 self.bias_posterior = bias_posterior
-        
-    def reset_parameters(self):
-        raise NotImplementedError('Has to be implemented!')        
     
     def forward(self, input):
-        # sample weights and bias
         weights = self.weight_posterior.sample()
         
         if self.bias:
             bias = self.bias_posterior.sample()
-            output = F.linear(input, weights, bias)
         else:
-            output = F.linear(input, weights)
+            bias = None
+            
+        output = F.linear(input, weights, bias)
                     
-        kl = ((self.weight_posterior.log_prob(weights).sum() - self.weight_prior.log_prob(weights).sum()) \
-            + (self.bias_posterior.log_prob(bias).sum() - self.bias_prior.log_prob(bias).sum()))
+        kl = self.weight_posterior.log_prob(weights).sum() - self.weight_prior.log_prob(weights).sum() \
+            + self.bias_posterior.log_prob(bias).sum() - self.bias_prior.log_prob(bias).sum()
             
         return output, kl
     
     def extra_repr(self):
-        return 'in_features={}, out_features={}, bias={}'.format(
+        return ('in_features={}, out_features={}, bias={}').format(
             self.in_features, self.out_features, self.bias is not None
         )
+        
