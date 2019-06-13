@@ -58,14 +58,8 @@ class GaussianMixture(PriorDistribution):
     """
     def __init__(self, sigma1, sigma2, pi):
         super().__init__()
-#         if not isinstance(sigma1, torch.FloatTensor):
-#             sigma1 = torch.tensor(sigma1, dtype=torch.float)
-#         if not isinstance(sigma2, torch.FloatTensor):
-#             sigma2 = torch.tensor(sigma2, dtype=torch.float)
         if not isinstance(pi, torch.FloatTensor):
             pi = torch.tensor(pi, dtype=torch.float)
-#         self.register_buffer('sigma1', sigma1.clone())
-#         self.register_buffer('sigma2', sigma2.clone())
         self.register_buffer('pi', pi.clone())
         
         self.normal1 = DiagonalNormal(loc=0, scale=sigma1)
