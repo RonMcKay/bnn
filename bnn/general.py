@@ -11,7 +11,7 @@ class KLLoss(nn.Module):
     def __init__(self):
         super().__init__()
 #         self.likelihood_cost = nn.CrossEntropyLoss(reduction='none')
-        self.likelihood_cost = nn.CrossEntropyLoss()
+        self.likelihood_cost = nn.CrossEntropyLoss(reduction='sum')
         
     def forward(self, outputs, target, kl, batch_weight):
         loss = []
