@@ -38,6 +38,9 @@ class DiagonalNormal(PriorDistribution):
         normalization = torch.tensor(2.0*math.pi).log() * (-0.5) - self.scale.log()
         exponential = ((value - self.loc) / self.scale)**2 * (-0.5)
         return normalization + exponential
+    
+    def extra_repr(self):
+        return 'loc={}, scale={}'.format(round(self.loc.item(), 5), round(self.scale.item(), 5))
         
 class Laplace(PriorDistribution):
     def __init__(self, loc, scale):
@@ -56,14 +59,14 @@ class GaussianMixture(PriorDistribution):
     """Scale mixture of two Gaussian densities
         from 'Weight Uncertainty in Neural Networks'
     """
-    def __init__(self, sigma1, sigma2, pi):
+    def __init__(self, sigma1, sigma2, pi, mu1=0, mu2=0):
         super().__init__()
         if not isinstance(pi, torch.FloatTensor):
             pi = torch.tensor(pi, dtype=torch.float)
         self.register_buffer('pi', pi.clone())
         
-        self.normal1 = DiagonalNormal(loc=0, scale=sigma1)
-        self.normal2 = DiagonalNormal(loc=0, scale=sigma2)
+        self.normal1 = DiagonalNormal(loc=mu1, scale=sigma1)
+        self.normal2 = DiagonalNormal(loc=mu2, scale=sigma2)
         
     def log_prob(self, value):
         logprob1 = self.normal1.log_prob(value)

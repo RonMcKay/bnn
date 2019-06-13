@@ -40,7 +40,6 @@ class DiagonalNormal(VariationalDistribution):
         std_dev = F.softplus(self.rho).add(1e-6)
         log_prob = torch.log(torch.tensor(2.0*math.pi)).div(-2.0) - std_dev.log() - sample.sub(self.loc).div(std_dev).pow(2).div(2.0)
         return log_prob
-            
     
 class Uniform(VariationalDistribution):
     def __init__(self, lower_bound=torch.tensor(0.0), upper_bound=torch.tensor(1.0)):
