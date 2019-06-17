@@ -11,6 +11,13 @@ from .priors import DiagonalNormal as PriorNormal
 from .priors import Laplace, GaussianMixture
 import logging
 
+class Flatten(nn.Module):
+    def __init__(self):
+        super().__init__()
+        
+    def forward(self, x):
+        return x.view(x.size(0), -1)
+
 class BLinear(BayesianLayer):
     """Applies a bayesian linear transformation to the incoming data.
     """
