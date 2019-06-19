@@ -8,22 +8,6 @@ class PriorDistribution(nn.Module):
     def __init__(self):
         super().__init__()
         
-#     def _apply(self, fn):
-#         for module in self.children():
-#             module._apply(fn)
-#         
-#         for param in self._parameters.values():
-#             if param is not None:
-#                 param.data = fn(param.data)
-#                 if param._grad is not None:
-#                     param._grad.data = fn(param._grad.data)
-#                     
-#         for key, buf in self._buffers.items():
-#             if buf is not None:
-#                 self._buffers[key] = fn(buf)
-#         self._init_dist()
-#         return self
-        
 class DiagonalNormal(PriorDistribution):
     def __init__(self, loc, scale):
         super().__init__()
