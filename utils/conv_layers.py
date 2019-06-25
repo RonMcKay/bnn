@@ -54,7 +54,7 @@ class _BConvNd(BayesianLayer):
             
         return s.format(**self.__dict__)
     
-    def _init_default_distributions(self):        
+    def _init_default_distributions(self):
         # specify default priors and variational posteriors
         dists = {'weight_prior': GaussianMixture(sigma1=0.1, sigma2=0.0005, pi=0.75),
                  'weight_posterior': DiagonalNormal(loc=torch.Tensor(self.out_channels,
@@ -142,7 +142,6 @@ class BConv2d(_BConvNd):
         bias_posterior (VariationalDistribution): Variational Distribution of the weights to approximate the real
                                                   Posterior Distribution. If ``None``, takes a diagonal gaussian
                                                   distribution as variational distribution. Default: ``None``
-        
     """
     def __init__(self, in_channels, out_channels, kernel_size,
                  weight_prior=None, weight_posterior=None, bias_prior=None, bias_posterior=None,

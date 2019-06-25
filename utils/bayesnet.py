@@ -11,18 +11,20 @@ from bnn.utils import KLLoss
 import logging
 
 class BayesNetWrapper(object):
-    def __init__(self, net, cuda=True, parallel=False, device_ids=None, output_device=None):
+    def __init__(self, net, cuda=True, parallel=False, device_ids=None, output_device=None,
+                 learning_rate=0.001, ignore_index=-100):
         super().__init__()
         self.log = logging.getLogger(__name__)
         self.net = net
         self.is_cuda = cuda
         self.is_parallel = parallel
+        self.lr = learning_rate
         if cuda:
             self.cuda()
         if parallel:
             self.parallel(device_ids, output_device)
             
-        self.crit = KLLoss()
+        self.crit = KLLoss(ignore_index=ignore_index)
         self._init_optimizer()   
                 
     def fit(self, x, y, batch_weight, samples=1):
@@ -72,7 +74,7 @@ class BayesNetWrapper(object):
             return pred
             
     def _init_optimizer(self):
-        self.optimizer = optim.Adam(self.net.parameters(), lr=0.001)
+        self.optimizer = optim.Adam(self.net.parameters(), lr=self.lr)
     
     def cuda(self):
         if not torch.cuda.is_available():
@@ -89,6 +91,7 @@ class BayesNetWrapper(object):
         
     def sequential(self):
         if isinstance(self.net, ParallelSamplingWrapper):
+            self.log.debug('Model is getting serialized')
             self.net = self.net.module
             self.is_parallel = False
             

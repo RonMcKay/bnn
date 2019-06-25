@@ -2,15 +2,18 @@ import torch
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
+import logging
 
 class BayesianLayer(nn.Module):
     def __init__(self):
         super().__init__()
         
 class KLLoss(nn.Module):
-    def __init__(self):
+    def __init__(self, ignore_index=-100):
         super().__init__()
-        self.likelihood_cost = nn.CrossEntropyLoss(reduction='sum')
+        self.log = logging.getLogger(__name__)
+        self.likelihood_cost = nn.CrossEntropyLoss(reduction='sum', ignore_index=ignore_index)
+        self.log.debug('Initialized Kullback-Leibler loss')
         
     def forward(self, outputs, target, kl, batch_weight):
         loss = []
