@@ -19,9 +19,10 @@ class DiagonalNormal(PriorDistribution):
         self.register_buffer('scale', scale.clone())
         
     def log_prob(self, value):
-        normalization = torch.tensor(2.0*math.pi).log() * (-0.5) - self.scale.log()
-        exponential = ((value - self.loc) / self.scale)**2 * (-0.5)
-        return normalization + exponential
+#         normalization = torch.tensor(2.0*math.pi).log() * (-0.5) - self.scale.log()
+#         exponential = ((value - self.loc) / self.scale)**2 * (-0.5)
+#         return normalization + exponential
+        return torch.tensor(2.0*math.pi).log() * (-0.5) - self.scale.log() + ((value - self.loc) / self.scale)**2 * (-0.5)
     
     def extra_repr(self):
         return 'loc={}, scale={}'.format(round(self.loc.item(), 5), round(self.scale.item(), 5))
@@ -59,6 +60,7 @@ class GaussianMixture(PriorDistribution):
         # Numerical stability trick -> unnormalising logprobs will underflow otherwise
         # from: https://github.com/JavierAntoran/Bayesian-Neural-Networks
         max_logprob = torch.max(logprob1, logprob2)
-        normalised_probs = self.pi * torch.exp(logprob1 - max_logprob) + (1-self.pi) * torch.exp(logprob2 - max_logprob)
-        logprob = torch.log(normalised_probs) + max_logprob
-        return logprob
+#         normalised_probs = self.pi * torch.exp(logprob1 - max_logprob) + (1-self.pi) * torch.exp(logprob2 - max_logprob)
+#         logprob = torch.log(normalised_probs) + max_logprob
+#         return logprob
+        return torch.log(self.pi * torch.exp(logprob1 - max_logprob) + (1-self.pi) * torch.exp(logprob2 - max_logprob)) + max_logprob

@@ -26,46 +26,15 @@ class BLinear(BayesianLayer):
         super().__init__()
         self.log = logging.getLogger(__name__)
         self.in_features = in_features
-        self.out_features = out_features
-                
-        if weight_prior is None:
-#             self.weight_prior = PriorNormal(loc=0,
-#                                      scale=0.5)
-            self.weight_prior = GaussianMixture(sigma1=0.1, sigma2=0.0005, pi=0.75)
-        else:
-            self.weight_prior = weight_prior
-        
-        if weight_posterior is None:
-#             std = 1.0 / math.sqrt(self.out_features)
-            std = math.sqrt(6.0 / self.out_features)
-            self.weight_posterior = DiagonalNormal(loc=torch.Tensor(out_features, in_features).uniform_(-0.1, 0.1),
-                                           rho=torch.Tensor(out_features, in_features).uniform_(-3, -2))
-        elif not isinstance(weight_posterior, VariationalDistribution):
-            self.log.error('weight_posterior has to be a variational distribution')
-            raise ValueError('weight_posterior has to be a variational distribution')
-        else:
-            self.weight_posterior = weight_posterior
-            
+        self.out_features = out_features            
         self.bias = bias
-        if self.bias:
-            if bias_prior is None:
-#                 self.bias_prior = PriorNormal(loc=0,
-#                                               scale=0.5)
-                self.bias_prior = GaussianMixture(sigma1=0.1, sigma2=0.0005, pi=0.75)
-            else:
-                self.bias_prior = bias_prior
-        
-            if bias_posterior is None:
-                std = math.sqrt(6.0 / self.out_features)
-                self.bias_posterior = DiagonalNormal(loc=torch.Tensor(out_features).uniform_(-0.1, 0.1),
-                                                    rho=torch.Tensor(out_features).uniform_(-3, -2))
-            elif not isinstance(bias_posterior, VariationalDistribution):
-                self.log.error('bias_posterior has to be a variational distribution')
-                raise ValueError('bias_posterior has to be a variational distribution')
-            else:
-                self.bias_posterior = bias_posterior
+        self.weight_prior = weight_prior
+        self.weight_posterior = weight_posterior
+        self.bias_prior = bias_prior
+        self.bias_posterior = bias_posterior
+        self._init_default_distributions()
     
-    def forward(self, input):
+    def forward(self, input, **kwargs):
         weights = self.weight_posterior.sample()
         
         if self.bias:
@@ -75,10 +44,28 @@ class BLinear(BayesianLayer):
             
         output = F.linear(input, weights, bias)
                     
-        kl = self.weight_posterior.log_prob(weights).sum() - self.weight_prior.log_prob(weights).sum() \
-            + self.bias_posterior.log_prob(bias).sum() - self.bias_prior.log_prob(bias).sum()
+        kl = self.weight_posterior.log_prob(weights).sum() - self.weight_prior.log_prob(weights).sum()
+        if self.bias:
+            kl += self.bias_posterior.log_prob(bias).sum() - self.bias_prior.log_prob(bias).sum()
             
         return output, kl
+    
+    def _init_default_distributions(self):
+        # specify default priors and variational posteriors
+        dists = {'weight_prior': GaussianMixture(sigma1=0.1, sigma2=0.0005, pi=0.75),
+                 'weight_posterior': DiagonalNormal(loc=torch.Tensor(self.out_features,
+                                                                     self.in_features).uniform_(-0.1, 0.1),
+                                                    rho=torch.Tensor(self.out_features,
+                                                                     self.in_features).uniform_(-3, -2))}
+        if self.bias:
+            dists['bias_prior'] = GaussianMixture(sigma1=0.1, sigma2=0.0005, pi=0.75)
+            dists['bias_posterior'] = DiagonalNormal(loc=torch.Tensor(self.out_features).uniform_(-0.1, 0.1),
+                                                     rho=torch.Tensor(self.out_features).uniform_(-3, -2))
+        
+        # specify all distributions that are not given by the user as the default distribution
+        for d in dists:
+            if getattr(self, d) is None:
+                setattr(self, d, dists[d])
     
     def extra_repr(self):
         return ('in_features={}, out_features={}, bias={}').format(

@@ -14,7 +14,7 @@ class BayesNetWrapper(object):
     def __init__(self, net, cuda=True, parallel=False, device_ids=None, output_device=None,
                  learning_rate=0.001, ignore_index=-100):
         super().__init__()
-        self.log = logging.getLogger(__name__)
+        self.log = logging.getLogger(__name__ + '.BayesNetWrapper')
         self.net = net
         self.is_cuda = cuda
         self.is_parallel = parallel

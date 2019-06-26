@@ -62,10 +62,11 @@ class _BConvNd(BayesianLayer):
                                                                      *self.kernel_size).uniform_(-0.1, 0.1),
                                                     rho=torch.Tensor(self.out_channels,
                                                                      self.in_channels,
-                                                                     *self.kernel_size).uniform_(-3, -2)),
-                 'bias_prior': GaussianMixture(sigma1=0.1, sigma2=0.0005, pi=0.75),
-                 'bias_posterior': DiagonalNormal(loc=torch.Tensor(self.out_channels).uniform_(-0.1, 0.1),
-                                                  rho=torch.Tensor(self.out_channels).uniform_(-3, -2))}
+                                                                     *self.kernel_size).uniform_(-3, -2))}
+        if self.bias:
+            dists['bias_prior'] = GaussianMixture(sigma1=0.1, sigma2=0.0005, pi=0.75)
+            dists['bias_posterior'] = DiagonalNormal(loc=torch.Tensor(self.out_channels).uniform_(-0.1, 0.1),
+                                                     rho=torch.Tensor(self.out_channels).uniform_(-3, -2))
         
         # specify all distributions that are not given by the user as the default distribution
         for d in dists:
@@ -107,7 +108,7 @@ class BConv1d(_BConvNd):
                          stride, padding, dilation, False, _single(0), groups,
                          bias)
         
-    def forward(self, input):
+    def forward(self, input, **kwargs):
         weights = self.weight_posterior.sample()
         
         if self.bias:
@@ -118,8 +119,9 @@ class BConv1d(_BConvNd):
         out = F.conv1d(input, weight=weights, bias=bias,
                        stride=self.stride, padding=self.padding, dilation=self.dilation, groups=self.groups)
         
-        kl = self.weight_posterior.log_prob(weights).sum() - self.weight_prior.log_prob(weights).sum() \
-            + self.bias_posterior.log_prob(bias).sum() - self.bias_prior.log_prob(bias).sum()
+        kl = self.weight_posterior.log_prob(weights).sum() - self.weight_prior.log_prob(weights).sum()
+        if self.bias:
+            kl += self.bias_posterior.log_prob(bias).sum() - self.bias_prior.log_prob(bias).sum()
             
         return out, kl
     
@@ -156,7 +158,7 @@ class BConv2d(_BConvNd):
                          stride, padding, dilation, False, _pair(0), groups,
                          bias)
         
-    def forward(self, input):
+    def forward(self, input, **kwargs):
         weights = self.weight_posterior.sample()
         
         if self.bias:
@@ -167,8 +169,9 @@ class BConv2d(_BConvNd):
         out = F.conv2d(input, weight=weights, bias=bias,
                        stride=self.stride, padding=self.padding, dilation=self.dilation, groups=self.groups)
         
-        kl = self.weight_posterior.log_prob(weights).sum() - self.weight_prior.log_prob(weights).sum() \
-            + self.bias_posterior.log_prob(bias).sum() - self.bias_prior.log_prob(bias).sum()
+        kl = self.weight_posterior.log_prob(weights).sum() - self.weight_prior.log_prob(weights).sum()
+        if self.bias:
+            kl += self.bias_posterior.log_prob(bias).sum() - self.bias_prior.log_prob(bias).sum()
             
         return out, kl
     
