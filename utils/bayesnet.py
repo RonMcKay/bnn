@@ -10,22 +10,31 @@ import torch.nn.functional as F
 from bnn.utils import KLLoss
 import logging
 
+def get_entropy(input, dim=1):
+    return (input * input.log()).sum(dim)
+
 class BayesNetWrapper(object):
     def __init__(self, net, cuda=True, parallel=False, device_ids=None, output_device=None,
-                 learning_rate=0.001, ignore_index=-100):
+                 learning_rate=0.001, ignore_index=-100, loss_weights=None, weight_decay=0, loss_reduction='sum',
+                 task='classification'):
         super().__init__()
         self.log = logging.getLogger(__name__ + '.BayesNetWrapper')
         self.net = net
         self.is_cuda = cuda
         self.is_parallel = parallel
         self.lr = learning_rate
+        possible_tasks = ['classification', 'regression']
+        if task not in possible_tasks:
+            self.log.error('Expected task to be one of [' + ','.join(possible_tasks) + '], but received ' + task)
+            raise ValueError('Expected task to be one of [' + ','.join(possible_tasks) + '], but received ' + task)
+        self.task = task
         if cuda:
             self.cuda()
         if parallel:
             self.parallel(device_ids, output_device)
             
-        self.crit = KLLoss(ignore_index=ignore_index)
-        self._init_optimizer()   
+        self.crit = KLLoss(ignore_index=ignore_index, weight=loss_weights, reduction=loss_reduction)
+        self._init_optimizer(weight_decay=weight_decay)   
                 
     def fit(self, x, y, batch_weight, samples=1):
         self.net.train()
@@ -48,12 +57,15 @@ class BayesNetWrapper(object):
         loss.backward()
         self.optimizer.step()
         
-        pred = F.softmax(outputs.data.cpu(), 2).mean(0).argmax(1)
-        acc = (pred == y.cpu()).float().mean()
+        if self.task == 'classification':
+            pred = F.softmax(outputs.data.cpu(), 2).mean(0).argmax(1)
+            acc = (pred == y.cpu()).float().mean().item()
+        elif self.task == 'regression':
+            acc = 0
         
-        return loss.item(), acc.item()
+        return loss.item(), acc
             
-    def predict(self, x, samples=10, y=None, return_on_cpu=True):
+    def predict(self, x, samples=10, return_on_cpu=True):
         self.net.eval()
         if self.is_cuda:
             x = x.cuda()
@@ -62,18 +74,27 @@ class BayesNetWrapper(object):
             outputs = []
             for _ in range(samples):
                 out, _ = self.net(x)
-                outputs.append(out.data.cpu())
-            pred = F.softmax(torch.stack(outputs), 2).mean(0).argmax(1)
+                if return_on_cpu:
+                    outputs.append(out.data.cpu())
+                else:
+                    outputs.append(out)
+            outputs = torch.stack(outputs)
         else:
             outputs, _ = self.net(x, samples=samples)
-            pred = F.softmax(outputs.data.cpu(), 2).mean(0).argmax(1)
-        if y is not None:
-            acc = (pred == y).float().mean().item()
-            return pred, acc
-        else:
-            return pred
+            if return_on_cpu:
+                outputs = outputs.data.cpu()
+                
+        if self.task == 'classification':
+            outputs = F.softmax(outputs, 2).mean(0)
+            pred = outputs.argmax(1)
+            uncertainty = get_entropy(outputs)
+        elif self.task == 'regression':
+            pred = outputs.mean(0)
+            uncertainty = outputs.std(0)
+        
+        return pred, uncertainty
             
-    def _init_optimizer(self):
+    def _init_optimizer(self, weight_decay):
         self.optimizer = optim.Adam(self.net.parameters(), lr=self.lr)
     
     def cuda(self):
