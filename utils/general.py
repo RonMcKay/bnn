@@ -9,13 +9,15 @@ class BayesianLayer(nn.Module):
         super().__init__()
         
 class KLLoss(nn.Module):
-    def __init__(self, ignore_index=-100):
+    def __init__(self, ignore_index=-100, weight=None, reduction='sum'):
         super().__init__()
         self.log = logging.getLogger(__name__ + '.KLLoss')
-        self.likelihood_cost = nn.CrossEntropyLoss(reduction='sum', ignore_index=ignore_index)
+        self.likelihood_cost = nn.CrossEntropyLoss(reduction=reduction,
+                                                   ignore_index=ignore_index,
+                                                   weight=weight)
         self.log.debug('Initialized Kullback-Leibler loss')
         
-    def forward(self, outputs, target, kl, batch_weight):
+    def forward(self, outputs, target, kl, batch_weight, **kwargs):
         loss = []
         for i in range(outputs.size(0)):
             loss.append(self.likelihood_cost(outputs[i], target))
