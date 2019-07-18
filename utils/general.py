@@ -23,6 +23,9 @@ class KLLoss(nn.Module):
             loss.append(self.likelihood_cost(outputs[i], target))
         loss = torch.stack(loss).mean()
         kl_loss = batch_weight * kl
+        if '_run' in kwargs:
+            kwargs['_run'].log_scalar('train.cross_entropy', loss.item())
+            kwargs['_run'].log_scalar('train.kl_loss', kl_loss.item())
         self.log.debug('Cross Entropy: {:.2f}, KL: {:.2f}'.format(loss.item(), kl_loss.item()))
         
         return kl_loss + loss
