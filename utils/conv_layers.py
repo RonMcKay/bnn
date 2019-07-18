@@ -1,4 +1,5 @@
 import torch
+import math
 import torch.nn as nn
 import torch.nn.functional as F
 from .general import BayesianLayer
@@ -7,6 +8,7 @@ from .priors import GaussianMixture
 from .posteriors import VariationalDistribution
 from .posteriors import DiagonalNormal
 from torch.nn.modules.utils import _single, _pair, _triple
+import logging
 
 class _BConvNd(BayesianLayer):
     def __init__(self, in_channels, out_channels, kernel_size,
@@ -14,6 +16,7 @@ class _BConvNd(BayesianLayer):
                  stride, padding, dilation, transposed, output_padding,
                  groups, bias):
         super().__init__()
+        self.log = logging.getLogger(__name__ + 'BConvNd')
         if in_channels % groups != 0:
             raise ValueError('in_channels must be divisible by groups')
         if out_channels % groups != 0:
@@ -56,17 +59,22 @@ class _BConvNd(BayesianLayer):
     
     def _init_default_distributions(self):
         # specify default priors and variational posteriors
+        x = self.kernel_size[0]
+        for i in range(1, len(self.kernel_size)):
+            x *= self.kernel_size[i]
+        self.log.debug('Receptive field size is {}'.format(x))
+        bound = math.sqrt(2.0/(x*self.in_channels))        
         dists = {'weight_prior': GaussianMixture(sigma1=0.1, sigma2=0.0005, pi=0.75),
-                 'weight_posterior': DiagonalNormal(loc=torch.Tensor(self.out_channels,
-                                                                     self.in_channels,
-                                                                     *self.kernel_size).uniform_(-0.1, 0.1),
+                 'weight_posterior': DiagonalNormal(mean=torch.Tensor(self.out_channels,
+                                                                      self.in_channels,
+                                                                      *self.kernel_size).uniform_(-bound, bound),
                                                     rho=torch.Tensor(self.out_channels,
                                                                      self.in_channels,
-                                                                     *self.kernel_size).uniform_(-3, -2))}
+                                                                     *self.kernel_size).normal_(-9, 0.001))}
         if self.bias:
             dists['bias_prior'] = GaussianMixture(sigma1=0.1, sigma2=0.0005, pi=0.75)
-            dists['bias_posterior'] = DiagonalNormal(loc=torch.Tensor(self.out_channels).uniform_(-0.1, 0.1),
-                                                     rho=torch.Tensor(self.out_channels).uniform_(-3, -2))
+            dists['bias_posterior'] = DiagonalNormal(mean=torch.Tensor(self.out_channels).uniform_(-0.01, 0.01),
+                                                     rho=torch.Tensor(self.out_channels).normal_(-9, 0.001))
         
         # specify all distributions that are not given by the user as the default distribution
         for d in dists:
@@ -153,9 +161,17 @@ class BConv2d(_BConvNd):
         stride = _pair(stride)
         padding = _pair(padding)
         dilation = _pair(dilation)
-        super().__init__(in_channels, out_channels, kernel_size,
-                         weight_prior, weight_posterior, bias_prior, bias_posterior,
-                         stride, padding, dilation, False, _pair(0), groups,
+        super().__init__(in_channels,
+                         out_channels,
+                         kernel_size,
+                         weight_prior, weight_posterior,
+                         bias_prior, bias_posterior,
+                         stride,
+                         padding,
+                         dilation,
+                         False,
+                         _pair(0),
+                         groups,
                          bias)
         
     def forward(self, input, **kwargs):

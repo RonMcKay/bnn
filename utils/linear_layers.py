@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import torch.nn as nn
 # import torch.distributions as dist
 from torch.distributions import Distribution
+from torch.nn.init import _calculate_fan_in_and_fan_out as calc_fan
 from .general import BayesianLayer
 from .posteriors import VariationalDistribution
 from .posteriors import DiagonalNormal
@@ -52,15 +53,16 @@ class BLinear(BayesianLayer):
     
     def _init_default_distributions(self):
         # specify default priors and variational posteriors
+        bound = math.sqrt(2.0/float(self.in_features))
         dists = {'weight_prior': GaussianMixture(sigma1=0.1, sigma2=0.0005, pi=0.75),
-                 'weight_posterior': DiagonalNormal(loc=torch.Tensor(self.out_features,
-                                                                     self.in_features).uniform_(-0.1, 0.1),
+                 'weight_posterior': DiagonalNormal(mean=torch.Tensor(self.out_features,
+                                                                      self.in_features).uniform_(-bound, bound),
                                                     rho=torch.Tensor(self.out_features,
-                                                                     self.in_features).uniform_(-3, -2))}
+                                                                     self.in_features).normal_(-9, 0.001))}
         if self.bias:
             dists['bias_prior'] = GaussianMixture(sigma1=0.1, sigma2=0.0005, pi=0.75)
-            dists['bias_posterior'] = DiagonalNormal(loc=torch.Tensor(self.out_features).uniform_(-0.1, 0.1),
-                                                     rho=torch.Tensor(self.out_features).uniform_(-3, -2))
+            dists['bias_posterior'] = DiagonalNormal(mean=torch.Tensor(self.out_features).uniform_(-0.01, 0.01),
+                                                     rho=torch.Tensor(self.out_features).normal_(-9, 0.001))
         
         # specify all distributions that are not given by the user as the default distribution
         for d in dists:
