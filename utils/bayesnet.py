@@ -11,11 +11,13 @@ from bnn.utils import KLLoss
 import logging
 
 def get_entropy(input, dim=1):
-    return (input * input.log()).sum(dim)
+    entropy = (input * input.log())
+    entropy[torch.isnan(entropy)] = 0.0
+    return entropy.sum(dim).neg().div(math.log(input.size(dim)))
 
 class BayesNetWrapper(object):
     def __init__(self, net, cuda=True, parallel=False, device_ids=None, output_device=None,
-                 learning_rate=0.001, ignore_index=-100, loss_weights=None, weight_decay=0, loss_reduction='sum',
+                 learning_rate=1e-4, scheduling=False, ignore_index=-100, loss_weights=None, weight_decay=0, loss_reduction='sum',
                  task='classification'):
         super().__init__()
         self.log = logging.getLogger(__name__ + '.BayesNetWrapper')
@@ -34,10 +36,11 @@ class BayesNetWrapper(object):
             self.parallel(device_ids, output_device)
             
         self.crit = KLLoss(ignore_index=ignore_index, weight=loss_weights, reduction=loss_reduction)
-        self._init_optimizer(weight_decay=weight_decay)   
+        self._init_optimizer(weight_decay=weight_decay, scheduling=scheduling)   
                 
-    def fit(self, x, y, batch_weight, samples=1):
+    def fit(self, x, y, batch_weight, samples=1, **kwargs):
         self.net.train()
+        self.scheduler.step()
         self.optimizer.zero_grad()
         if self.is_cuda:
             x, y = x.cuda(), y.cuda()
@@ -47,13 +50,13 @@ class BayesNetWrapper(object):
             for _ in range(samples):
                 out, kl = self.net(x)
                 outputs.append(out)
-                kl_total += kl
+                kl_total = kl_total + kl
             outputs = torch.stack(outputs)
-            kl_total /= samples
+            kl_total = kl_total / samples
         else:
             outputs, kl_total = self.net(x, samples=samples)
         
-        loss = self.crit(outputs, y, kl_total, batch_weight)
+        loss = self.crit(outputs, y, kl_total, batch_weight, **kwargs)
         loss.backward()
         self.optimizer.step()
         
@@ -94,8 +97,13 @@ class BayesNetWrapper(object):
         
         return pred, uncertainty
             
-    def _init_optimizer(self, weight_decay):
+    def _init_optimizer(self, weight_decay, scheduling):
         self.optimizer = optim.Adam(self.net.parameters(), lr=self.lr)
+        
+        if scheduling:
+            self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=10, gamma=0.1)
+        else:
+            self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=10, gamma=1.0)
     
     def cuda(self):
         if not torch.cuda.is_available():
@@ -184,8 +192,8 @@ class ParallelSamplingWrapper(nn.Module):
             kl = [x.unsqueeze(0) for x in kl]
 #             outputs.append(self.gather(out, self.output_device))
 #             kls.append(self.gather(kl, self.output_device))
-            outputs += out
-            kls += kl
+            outputs = outputs + out
+            kls = kls + kl
         outputs = self.gather(outputs, self.output_device)[:samples]
         kls = self.gather(kls, self.output_device)[:samples].sum().div(samples)
 #         outputs = torch.cat(outputs)[:samples]
