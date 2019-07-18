@@ -18,28 +18,34 @@ class VariationalDistribution(nn.Module):
         raise NotImplementedError('Probability density function has to be implemented!')
     
 class DiagonalNormal(VariationalDistribution):
-    def __init__(self, loc=torch.tensor(0.0), rho=torch.tensor(0.0)):
+    def __init__(self, mean=torch.tensor(0.0), rho=torch.tensor(0.0)):
         super().__init__()
-        self.loc = nn.Parameter(loc)
+        self.mean = nn.Parameter(mean)
         self.rho = nn.Parameter(rho)
         
     def sample(self):
-        std_dev = F.softplus(self.rho).add(1e-6)
-        return self.loc + std_dev * torch.randn_like(self.rho)
+        std_dev = self.get_std()
+        return self.mean + std_dev * torch.randn_like(self.rho)
     
     def pdf(self, sample):
-        if sample.size() != self.loc.size():
+        if sample.size() != self.mean.size():
             raise ValueError('sample does not match with the distribution shape')
-        std_dev = F.softplus(self.rho).add(1e-6)
-        return sample.sub(self.loc).div(std_dev).pow(2).div(-2.0).exp().div((2*math.pi).sqrt()*std_dev)
+        std_dev = self.get_std()
+        return sample.sub(self.mean).div(std_dev).pow(2).div(-2.0).exp().div((2*math.pi).sqrt()*std_dev)
     
     def log_prob(self, sample):
-        if sample.size() != self.loc.size():
-            print(sample.size(), self.loc.size())
+        if sample.size() != self.mean.size():
+            print(sample.size(), self.mean.size())
             raise ValueError('sample does not match with the distribution shape')
-        std_dev = F.softplus(self.rho).add(1e-6)
-#         log_prob = torch.log(torch.tensor(2.0*math.pi)).div(-2.0) - std_dev.log() - sample.sub(self.loc).div(std_dev).pow(2).div(2.0)
-        return torch.log(torch.tensor(2.0*math.pi)).div(-2.0) - std_dev.log() - sample.sub(self.loc).div(std_dev).pow(2).div(2.0)
+        std_dev = self.get_std()
+#         log_prob = torch.log(torch.tensor(2.0*math.pi)).div(-2.0) - std_dev.log() - sample.sub(self.mean).div(std_dev).pow(2).div(2.0)
+        return torch.log(torch.tensor(2.0*math.pi)).div(-2.0) - std_dev.log() - sample.sub(self.mean).div(std_dev).pow(2).div(2.0)
+    
+    def get_std(self):
+        return F.softplus(self.rho) + 1e-6
+    
+    def get_mean(self):
+        return self.mean
     
 class Uniform(VariationalDistribution):
     def __init__(self, lower_bound=torch.tensor(0.0), upper_bound=torch.tensor(1.0)):

@@ -9,36 +9,42 @@ class PriorDistribution(nn.Module):
         super().__init__()
         
 class DiagonalNormal(PriorDistribution):
-    def __init__(self, loc, scale):
+    def __init__(self, mean=0, std=1):
         super().__init__()
-        if not isinstance(loc, torch.FloatTensor):
-            loc = torch.tensor(loc, dtype=torch.float)
-        if not isinstance(scale, torch.FloatTensor):
-            scale = torch.tensor(scale, dtype=torch.float)
-        self.register_buffer('loc', loc.clone())
-        self.register_buffer('scale', scale.clone())
+        if not isinstance(mean, torch.FloatTensor):
+            mean = torch.tensor(mean, dtype=torch.float)
+        if not isinstance(std, torch.FloatTensor):
+            std = torch.tensor(std, dtype=torch.float)
+        self.register_buffer('mean', mean.clone())
+        self.register_buffer('std', std.clone())
         
     def log_prob(self, value):
-#         normalization = torch.tensor(2.0*math.pi).log() * (-0.5) - self.scale.log()
-#         exponential = ((value - self.loc) / self.scale)**2 * (-0.5)
+#         normalization = torch.tensor(2.0*math.pi).log() * (-0.5) - self.std.log()
+#         exponential = ((value - self.mean) / self.std)**2 * (-0.5)
 #         return normalization + exponential
-        return torch.tensor(2.0*math.pi).log() * (-0.5) - self.scale.log() + ((value - self.loc) / self.scale)**2 * (-0.5)
+        return torch.tensor(2.0*math.pi).log() * (-0.5) - self.std.log() + ((value - self.mean) / self.std)**2 * (-0.5)
+    
+    def get_std(self):
+        return self.std
+    
+    def get_mean(self):
+        return self.mean
     
     def extra_repr(self):
-        return 'loc={}, scale={}'.format(round(self.loc.item(), 5), round(self.scale.item(), 5))
+        return 'mean={}, std={}'.format(round(self.mean.item(), 5), round(self.std.item(), 5))
         
 class Laplace(PriorDistribution):
-    def __init__(self, loc, scale):
+    def __init__(self, mean, std):
         super().__init__()
-        if not isinstance(loc, torch.FloatTensor):
-            loc = torch.tensor(loc, dtype=torch.float)
-        if not isinstance(scale, torch.FloatTensor):
-            scale = torch.tensor(scale, dtype=torch.float)
-        self.register_buffer('loc', loc.clone())
-        self.register_buffer('scale', scale.clone())
+        if not isinstance(mean, torch.FloatTensor):
+            mean = torch.tensor(mean, dtype=torch.float)
+        if not isinstance(std, torch.FloatTensor):
+            std = torch.tensor(std, dtype=torch.float)
+        self.register_buffer('mean', mean.clone())
+        self.register_buffer('std', std.clone())
         
     def log_prob(self, value):
-        return value.sub(self.loc).abs().div(self.scale).neg() - self.scale.mul(2).log()
+        return value.sub(self.mean).abs().div(self.std).neg() - self.std.mul(2).log()
         
 class GaussianMixture(PriorDistribution):
     """Scale mixture of two Gaussian densities
@@ -50,8 +56,8 @@ class GaussianMixture(PriorDistribution):
             pi = torch.tensor(pi, dtype=torch.float)
         self.register_buffer('pi', pi.clone())
         
-        self.normal1 = DiagonalNormal(loc=mu1, scale=sigma1)
-        self.normal2 = DiagonalNormal(loc=mu2, scale=sigma2)
+        self.normal1 = DiagonalNormal(mean=mu1, std=sigma1)
+        self.normal2 = DiagonalNormal(mean=mu2, std=sigma2)
         
     def log_prob(self, value):
         logprob1 = self.normal1.log_prob(value)
