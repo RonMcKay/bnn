@@ -81,6 +81,32 @@ class _BConvNd(BayesianLayer):
             if getattr(self, d) is None:
                 setattr(self, d, dists[d])
                 
+        if isinstance(self.weight_prior, (PriorNormal)) and isinstance(self.weight_posterior, (DiagonalNormal)):
+            self.kl_weights_closed = True
+            self.log.debug('Kullback Leibler Divergence for weights will be calculated in closed form.')
+        else:
+            self.kl_weights_closed = False
+            
+        if isinstance(self.bias_prior, (PriorNormal)) and isinstance(self.bias_posterior, (DiagonalNormal)):
+            self.kl_bias_closed = True
+            self.log.debug('Kullback Leibler Divergence for biases will be calculated in closed form.')
+        else:
+            self.kl_bias_closed = False
+                
+    def closed_form_kl(self, bias=False):
+        if bias:
+            sigma_prior = self.bias_prior.get_std()
+            sigma_posterior = self.bias_posterior.get_std()
+            mean_prior = self.bias_prior.get_mean()
+            mean_posterior = self.bias_posterior.get_mean()
+        else:
+            sigma_prior = self.weight_prior.get_std()
+            sigma_posterior = self.weight_posterior.get_std()
+            mean_prior = self.weight_prior.get_mean()
+            mean_posterior = self.weight_posterior.get_mean()
+            
+        return (torch.log(sigma_prior / sigma_posterior) + (sigma_posterior**2 + (mean_posterior - mean_prior)**2) / (2*sigma_prior**2) - 0.5).sum()
+                
     
 class BConv1d(_BConvNd):
     """Applies a 1d Bayesian convolution over an input signal composed of several input planes.
@@ -127,9 +153,15 @@ class BConv1d(_BConvNd):
         out = F.conv1d(input, weight=weights, bias=bias,
                        stride=self.stride, padding=self.padding, dilation=self.dilation, groups=self.groups)
         
-        kl = self.weight_posterior.log_prob(weights).sum() - self.weight_prior.log_prob(weights).sum()
+        if self.kl_weights_closed:
+            kl = self.closed_form_kl()
+        else:
+            kl = self.weight_posterior.log_prob(weights).sum() - self.weight_prior.log_prob(weights).sum()
         if self.bias:
-            kl += self.bias_posterior.log_prob(bias).sum() - self.bias_prior.log_prob(bias).sum()
+            if self.kl_bias_closed:
+                kl = kl + self.closed_form_kl(bias=True)
+            else:
+                kl = kl + self.bias_posterior.log_prob(bias).sum() - self.bias_prior.log_prob(bias).sum()
             
         return out, kl
     
@@ -185,9 +217,15 @@ class BConv2d(_BConvNd):
         out = F.conv2d(input, weight=weights, bias=bias,
                        stride=self.stride, padding=self.padding, dilation=self.dilation, groups=self.groups)
         
-        kl = self.weight_posterior.log_prob(weights).sum() - self.weight_prior.log_prob(weights).sum()
+        if self.kl_weights_closed:
+            kl = self.closed_form_kl()
+        else:
+            kl = self.weight_posterior.log_prob(weights).sum() - self.weight_prior.log_prob(weights).sum()
         if self.bias:
-            kl += self.bias_posterior.log_prob(bias).sum() - self.bias_prior.log_prob(bias).sum()
+            if self.kl_bias_closed:
+                kl = kl + self.closed_form_kl(bias=True)
+            else:
+                kl = kl + self.bias_posterior.log_prob(bias).sum() - self.bias_prior.log_prob(bias).sum()
             
         return out, kl
     

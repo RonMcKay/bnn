@@ -40,7 +40,6 @@ class BayesNetWrapper(object):
                 
     def fit(self, x, y, batch_weight, samples=1, **kwargs):
         self.net.train()
-        self.scheduler.step()
         self.optimizer.zero_grad()
         if self.is_cuda:
             x, y = x.cuda(), y.cuda()
