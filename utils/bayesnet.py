@@ -13,7 +13,7 @@ import logging
 def get_entropy(input, dim=1):
     entropy = (input * input.log())
     entropy[torch.isnan(entropy)] = 0.0
-    return entropy.sum(dim).neg().div(math.log(input.size(dim)))
+    return entropy.sum(dim).neg()
 
 class BayesNetWrapper(object):
     def __init__(self, net, cuda=True, parallel=False, device_ids=None, output_device=None,
@@ -45,7 +45,7 @@ class BayesNetWrapper(object):
             x, y = x.cuda(), y.cuda()
         if not self.is_parallel:
             outputs = []
-            kl_total = 0
+            kl_total = torch.tensor(0.0, device=x.device, requires_grad=True)
             for _ in range(samples):
                 out, kl = self.net(x)
                 outputs.append(out)
@@ -87,22 +87,26 @@ class BayesNetWrapper(object):
                 outputs = outputs.data.cpu()
                 
         if self.task == 'classification':
-            outputs = F.softmax(outputs, 2).mean(0)
+            outputs = F.softmax(outputs, 2)
+            aleatoric_uncertainty = get_entropy(outputs, dim=2).mean(0)
+            outputs = outputs.mean(0)
             pred = outputs.argmax(1)
             uncertainty = get_entropy(outputs)
+            epistemic_uncertainty = uncertainty - aleatoric_uncertainty
         elif self.task == 'regression':
             pred = outputs.mean(0)
             uncertainty = outputs.std(0)
         
-        return pred, uncertainty
+        return pred, aleatoric_uncertainty, epistemic_uncertainty
             
     def _init_optimizer(self, weight_decay, scheduling):
         self.optimizer = optim.Adam(self.net.parameters(), lr=self.lr)
+#         self.optimizer = optim.SGD(self.net.parameters(), lr=self.lr, momentum=0)
         
         if scheduling:
-            self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=10, gamma=0.1)
+            self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=50, gamma=0.1)
         else:
-            self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=10, gamma=1.0)
+            self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=50, gamma=1.0)
     
     def cuda(self):
         if not torch.cuda.is_available():

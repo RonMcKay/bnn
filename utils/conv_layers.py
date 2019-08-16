@@ -62,7 +62,7 @@ class _BConvNd(BayesianLayer):
         x = self.kernel_size[0]
         for i in range(1, len(self.kernel_size)):
             x *= self.kernel_size[i]
-        self.log.debug('Receptive field size is {}'.format(x))
+        self.log.debug('Number of filter weights: {}'.format(x))
         bound = math.sqrt(2.0/(x*self.in_channels))        
         dists = {'weight_prior': GaussianMixture(sigma1=0.1, sigma2=0.0005, pi=0.75),
                  'weight_posterior': DiagonalNormal(mean=torch.Tensor(self.out_channels,
