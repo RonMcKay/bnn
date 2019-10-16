@@ -40,6 +40,7 @@ class BayesNetWrapper(object):
                 
     def fit(self, x, y, batch_weight, samples=1, **kwargs):
         self.net.train()
+        self.scheduler.step()
         self.optimizer.zero_grad()
         if self.is_cuda:
             x, y = x.cuda(), y.cuda()
@@ -64,38 +65,43 @@ class BayesNetWrapper(object):
             acc = (pred == y.cpu()).float().mean().item()
         elif self.task == 'regression':
             acc = 0
+            
+        if '_run' in kwargs:
+            kwargs['_run'].log_scalar('batch.loss', loss.item())
+            kwargs['_run'].log_scalar('batch.accuracy', acc)
         
         return loss.item(), acc
             
     def predict(self, x, samples=10, return_on_cpu=True):
-        self.net.eval()
-        if self.is_cuda:
-            x = x.cuda()
-        
-        if not self.is_parallel:
-            outputs = []
-            for _ in range(samples):
-                out, _ = self.net(x)
+        with torch.no_grad():
+            self.net.eval()
+            if self.is_cuda:
+                x = x.cuda()
+            
+            if not self.is_parallel:
+                outputs = []
+                for _ in range(samples):
+                    out, _ = self.net(x)
+                    if return_on_cpu:
+                        outputs.append(out.data.cpu())
+                    else:
+                        outputs.append(out)
+                outputs = torch.stack(outputs)
+            else:
+                outputs, _ = self.net(x, samples=samples)
                 if return_on_cpu:
-                    outputs.append(out.data.cpu())
-                else:
-                    outputs.append(out)
-            outputs = torch.stack(outputs)
-        else:
-            outputs, _ = self.net(x, samples=samples)
-            if return_on_cpu:
-                outputs = outputs.data.cpu()
-                
-        if self.task == 'classification':
-            outputs = F.softmax(outputs, 2)
-            aleatoric_uncertainty = get_entropy(outputs, dim=2).mean(0)
-            outputs = outputs.mean(0)
-            pred = outputs.argmax(1)
-            uncertainty = get_entropy(outputs)
-            epistemic_uncertainty = uncertainty - aleatoric_uncertainty
-        elif self.task == 'regression':
-            pred = outputs.mean(0)
-            uncertainty = outputs.std(0)
+                    outputs = outputs.data.cpu()
+                    
+            if self.task == 'classification':
+                outputs = F.softmax(outputs, 2)
+                aleatoric_uncertainty = get_entropy(outputs, dim=2).mean(0)
+                outputs = outputs.mean(0)
+                pred = outputs.argmax(1)
+                uncertainty = get_entropy(outputs)
+                epistemic_uncertainty = uncertainty - aleatoric_uncertainty
+            elif self.task == 'regression':
+                pred = outputs.mean(0)
+                uncertainty = outputs.std(0)
         
         return pred, aleatoric_uncertainty, epistemic_uncertainty
             
