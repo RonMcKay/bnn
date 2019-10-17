@@ -80,13 +80,19 @@ class BayesNetWrapper(object):
             
             if not self.is_parallel:
                 outputs = []
+                additional_outputs = []
                 for _ in range(samples):
-                    out, _ = self.net(x)
+                    out, *additional = self.net(x)
                     if return_on_cpu:
                         outputs.append(out.data.cpu())
+                        additional_outputs.append([i.data.cpu() for i in additional])
                     else:
                         outputs.append(out)
+                        additional_outputs.append(tuple(additional))
                 outputs = torch.stack(outputs)
+                add_outs = []
+                for i in range(len(additional_outputs[0])):
+                    add_outs.append(torch.stack([j[i] for j in additional_outputs]).mean(0))
             else:
                 outputs, _ = self.net(x, samples=samples)
                 if return_on_cpu:
@@ -103,7 +109,7 @@ class BayesNetWrapper(object):
                 pred = outputs.mean(0)
                 uncertainty = outputs.std(0)
         
-        return pred, aleatoric_uncertainty, epistemic_uncertainty
+        return (pred, aleatoric_uncertainty, epistemic_uncertainty, *add_outs)
             
     def _init_optimizer(self, weight_decay, scheduling):
         self.optimizer = optim.Adam(self.net.parameters(), lr=self.lr)
