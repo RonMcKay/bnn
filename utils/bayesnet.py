@@ -7,6 +7,7 @@ from torch.nn.parallel import replicate, parallel_apply, scatter
 from torch.cuda._utils import _get_device_index
 import torch.cuda.comm as comm
 import torch.nn.functional as F
+from torch.nn.parameter import Parameter
 from bnn.utils import KLLoss
 import logging
 
@@ -152,11 +153,29 @@ class BayesNetWrapper(object):
             torch.save(self.net.module.state_dict(), filename)
         self.log.debug('Model saved to \'{}\''.format(filename))
         
-    def load(self, filename):
+    def load(self, filename, use_list=None):
         if not self.is_parallel:
-            self.net.load_state_dict(torch.load(filename))
+            own_state = self.net.state_dict()
         else:
-            self.net.module.load_state_dict(torch.load(filename))
+            own_state = self.net.module.state_dict()
+        
+        model_parameters = torch.load(filename)
+    
+        for name in model_parameters.keys():
+            if use_list is not None:
+                if name not in use_list:
+                    continue
+            if name in own_state:
+                #print name
+                param = model_parameters[name]
+                if isinstance(param, Parameter):
+                    param = param.data
+    
+                if own_state[name].shape[:] != param.shape[:]:
+                    self.log.warning('For {} no parameters have been loaded as the saved parameter shape does not match!'\
+                                     .format(name))
+                    continue
+                own_state[name].copy_(param)
         self.log.debug('Model loaded from \'{}\''.format(filename))
         
 class ParallelSamplingWrapper(nn.Module):
