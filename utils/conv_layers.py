@@ -2,13 +2,15 @@ import torch
 import math
 import torch.nn as nn
 import torch.nn.functional as F
-from .general import BayesianLayer
-from .priors import DiagonalNormal as PriorNormal
-from .priors import GaussianMixture
-from .posteriors import VariationalDistribution
-from .posteriors import DiagonalNormal
-from torch.nn.modules.utils import _single, _pair, _triple
+from torch.nn.modules.utils import _single, _pair
 import logging
+
+from bnn.utils.general import BayesianLayer
+from bnn.utils.priors import DiagonalNormal as PriorNormal
+from bnn.utils.priors import GaussianMixture
+from bnn.utils.posteriors import VariationalDistribution
+from bnn.utils.posteriors import DiagonalNormal
+
 
 class _BConvNd(BayesianLayer):
     def __init__(self, in_channels, out_channels, kernel_size,
@@ -35,12 +37,14 @@ class _BConvNd(BayesianLayer):
         self.weight_posterior = weight_posterior
         self.bias_prior = bias_prior
         self.bias_posterior = bias_posterior
-        
+        self.kl_weights_closed = False
+        self.kl_bias_closed = False
+
         self._init_default_distributions()
-        
+
     def reset_parameters(self):
         raise NotImplementedError('Has to be implemented!')
-    
+
     def extra_repr(self):
         s = ('{in_channels}, {out_channels}, kernel_size={kernel_size}'
              ', stride={stride}')
@@ -54,16 +58,16 @@ class _BConvNd(BayesianLayer):
             s += ', groups={groups}'
         if self.bias is None:
             s += ', bias=False'
-            
+
         return s.format(**self.__dict__)
-    
+
     def _init_default_distributions(self):
         # specify default priors and variational posteriors
         x = self.kernel_size[0]
         for i in range(1, len(self.kernel_size)):
             x *= self.kernel_size[i]
         self.log.debug('Number of filter weights: {}'.format(x))
-        bound = math.sqrt(2.0/(x*self.in_channels))        
+        bound = math.sqrt(2.0 / (x * self.in_channels))
         dists = {'weight_prior': GaussianMixture(sigma1=0.1, sigma2=0.0005, pi=0.75),
                  'weight_posterior': DiagonalNormal(mean=torch.Tensor(self.out_channels,
                                                                       self.in_channels,
@@ -75,24 +79,20 @@ class _BConvNd(BayesianLayer):
             dists['bias_prior'] = GaussianMixture(sigma1=0.1, sigma2=0.0005, pi=0.75)
             dists['bias_posterior'] = DiagonalNormal(mean=torch.Tensor(self.out_channels).uniform_(-0.01, 0.01),
                                                      rho=torch.Tensor(self.out_channels).normal_(-9, 0.001))
-        
+
         # specify all distributions that are not given by the user as the default distribution
         for d in dists:
             if getattr(self, d) is None:
                 setattr(self, d, dists[d])
-                
-        if isinstance(self.weight_prior, (PriorNormal)) and isinstance(self.weight_posterior, (DiagonalNormal)):
+
+        if isinstance(self.weight_prior, PriorNormal) and isinstance(self.weight_posterior, DiagonalNormal):
             self.kl_weights_closed = True
             self.log.debug('Kullback Leibler Divergence for weights will be calculated in closed form.')
-        else:
-            self.kl_weights_closed = False
-            
-        if isinstance(self.bias_prior, (PriorNormal)) and isinstance(self.bias_posterior, (DiagonalNormal)):
+
+        if isinstance(self.bias_prior, PriorNormal) and isinstance(self.bias_posterior, DiagonalNormal):
             self.kl_bias_closed = True
             self.log.debug('Kullback Leibler Divergence for biases will be calculated in closed form.')
-        else:
-            self.kl_bias_closed = False
-                
+
     def closed_form_kl(self, bias=False):
         if bias:
             sigma_prior = self.bias_prior.get_std()
@@ -104,10 +104,11 @@ class _BConvNd(BayesianLayer):
             sigma_posterior = self.weight_posterior.get_std()
             mean_prior = self.weight_prior.get_mean()
             mean_posterior = self.weight_posterior.get_mean()
-            
-        return (torch.log(sigma_prior / sigma_posterior) + (sigma_posterior**2 + (mean_posterior - mean_prior)**2) / (2*sigma_prior**2) - 0.5).sum()
-                
-    
+
+        return (torch.log(sigma_prior / sigma_posterior) + (
+                    sigma_posterior ** 2 + (mean_posterior - mean_prior) ** 2) / (2 * sigma_prior ** 2) - 0.5).sum()
+
+
 class BConv1d(_BConvNd):
     """Applies a 1d Bayesian convolution over an input signal composed of several input planes.
     All Parameters are the same as in the standard pytorch convolution operators, except:
@@ -129,6 +130,7 @@ class BConv1d(_BConvNd):
                                                   distribution as variational distribution. Default: ``None``
         
     """
+
     def __init__(self, in_channels, out_channels, kernel_size,
                  weight_prior=None, weight_posterior=None, bias_prior=None, bias_posterior=None,
                  stride=1, padding=0, dilation=1, groups=1,
@@ -141,18 +143,18 @@ class BConv1d(_BConvNd):
                          weight_prior, weight_posterior, bias_prior, bias_posterior,
                          stride, padding, dilation, False, _single(0), groups,
                          bias)
-        
-    def forward(self, input, **kwargs):
+
+    def forward(self, x, **kwargs):
         weights = self.weight_posterior.sample()
-        
+
         if self.bias:
             bias = self.bias_posterior.sample()
         else:
             bias = None
-            
-        out = F.conv1d(input, weight=weights, bias=bias,
+
+        out = F.conv1d(x, weight=weights, bias=bias,
                        stride=self.stride, padding=self.padding, dilation=self.dilation, groups=self.groups)
-        
+
         if self.kl_weights_closed:
             kl = self.closed_form_kl()
         else:
@@ -162,9 +164,10 @@ class BConv1d(_BConvNd):
                 kl = kl + self.closed_form_kl(bias=True)
             else:
                 kl = kl + self.bias_posterior.log_prob(bias).sum() - self.bias_prior.log_prob(bias).sum()
-            
+
         return out, kl
-    
+
+
 class BConv2d(_BConvNd):
     """Applies a 2d Bayesian convolution over an input signal composed of several input planes.
     All Parameters are the same as in the standard pytorch convolution operators, except:
@@ -185,6 +188,7 @@ class BConv2d(_BConvNd):
                                                   Posterior Distribution. If ``None``, takes a diagonal gaussian
                                                   distribution as variational distribution. Default: ``None``
     """
+
     def __init__(self, in_channels, out_channels, kernel_size,
                  weight_prior=None, weight_posterior=None, bias_prior=None, bias_posterior=None,
                  stride=1, padding=0, dilation=1, groups=1,
@@ -205,18 +209,18 @@ class BConv2d(_BConvNd):
                          _pair(0),
                          groups,
                          bias)
-        
-    def forward(self, input, **kwargs):
+
+    def forward(self, x, **kwargs):
         weights = self.weight_posterior.sample()
-        
+
         if self.bias:
             bias = self.bias_posterior.sample()
         else:
             bias = None
-            
-        out = F.conv2d(input, weight=weights, bias=bias,
+
+        out = F.conv2d(x, weight=weights, bias=bias,
                        stride=self.stride, padding=self.padding, dilation=self.dilation, groups=self.groups)
-        
+
         if self.kl_weights_closed:
             kl = self.closed_form_kl()
         else:
@@ -226,7 +230,5 @@ class BConv2d(_BConvNd):
                 kl = kl + self.closed_form_kl(bias=True)
             else:
                 kl = kl + self.bias_posterior.log_prob(bias).sum() - self.bias_prior.log_prob(bias).sum()
-            
+
         return out, kl
-    
-    

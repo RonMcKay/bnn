@@ -1,2 +1,2 @@
-from .general import KLLoss
-from .bayesnet import BayesNetWrapper
+from bnn.utils.general import KLLoss
+from bnn.utils.bayesnet import BayesNetWrapper
