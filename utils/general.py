@@ -5,6 +5,11 @@ import logging
 import operator
 from itertools import islice
 
+from bnn.utils.priors import PriorDistribution
+from bnn.utils.priors import DiagonalNormal as PriorNormal
+from bnn.utils.posteriors import VariationalDistribution
+from bnn.utils.posteriors import DiagonalNormal
+
 
 class BayesianLayer(nn.Module):
     def __init__(self):
@@ -91,3 +96,16 @@ class KLLoss(nn.Module):
         self.log.debug('Cross Entropy: {:.2f}, KL: {:.2f}'.format(loss.item(), kl_loss.item()))
 
         return kl_loss + loss
+
+
+def kldivergence(prior: PriorDistribution, posterior: VariationalDistribution, sample: torch.Tensor):
+    if isinstance(prior, PriorNormal) and isinstance(posterior, DiagonalNormal):
+        # calculate Kullback-Leibler Divergence in closed form
+        sigma_prior = prior.get_std()
+        sigma_posterior = posterior.get_std()
+        mean_prior = prior.get_mean()
+        mean_posterior = posterior.get_mean()
+        return (torch.log(sigma_prior / sigma_posterior) + (
+                sigma_posterior ** 2 + (mean_posterior - mean_prior) ** 2) / (2 * sigma_prior ** 2) - 0.5).sum()
+    else:
+        return posterior.log_prob(sample).sum() - prior.log_prob(sample).sum()

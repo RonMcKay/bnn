@@ -7,6 +7,9 @@ class PriorDistribution(nn.Module):
     def __init__(self):
         super().__init__()
 
+    def log_prob(self, sample):
+        raise NotImplementedError('Logarithmic probability density function has to be implemented!')
+
 
 class DiagonalNormal(PriorDistribution):
     def __init__(self, mean=0, std=1):
@@ -18,8 +21,8 @@ class DiagonalNormal(PriorDistribution):
         self.register_buffer('mean', mean.clone())
         self.register_buffer('std', std.clone())
 
-    def log_prob(self, value):
-        return torch.tensor(2.0 * math.pi).log() * (-0.5) - self.std.log() + ((value - self.mean) / self.std) ** 2 * (
+    def log_prob(self, sample):
+        return torch.tensor(2.0 * math.pi).log() * (-0.5) - self.std.log() + ((sample - self.mean) / self.std) ** 2 * (
             -0.5)
 
     def get_std(self):
@@ -42,8 +45,8 @@ class Laplace(PriorDistribution):
         self.register_buffer('mean', mean.clone())
         self.register_buffer('std', std.clone())
 
-    def log_prob(self, value):
-        return value.sub(self.mean).abs().div(self.std).neg() - self.std.mul(2).log()
+    def log_prob(self, sample):
+        return sample.sub(self.mean).abs().div(self.std).neg() - self.std.mul(2).log()
 
 
 class GaussianMixture(PriorDistribution):
