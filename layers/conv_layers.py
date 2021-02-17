@@ -5,11 +5,11 @@ import torch.nn.functional as F
 from torch.nn.modules.utils import _single, _pair
 import logging
 
-from bnn.utils.general import BayesianLayer, kldivergence
-from bnn.utils.priors import DiagonalNormal as PriorNormal
-from bnn.utils.priors import GaussianMixture
-from bnn.utils.posteriors import VariationalDistribution
-from bnn.utils.posteriors import DiagonalNormal
+from bnn import BayesianLayer
+from bnn.utils import kldivergence
+from bnn.distributions.priors import GaussianMixture
+from bnn.distributions.posteriors import VariationalDistribution
+from bnn.distributions.posteriors import DiagonalNormal
 
 
 class _BConvNd(BayesianLayer):
@@ -58,22 +58,17 @@ class _BConvNd(BayesianLayer):
 
     def _init_default_distributions(self):
         # specify default priors and variational posteriors
-        x = self.kernel_size[0]
-        for i in range(1, len(self.kernel_size)):
-            x *= self.kernel_size[i]
-        self.log.debug('Number of filter weights: {}'.format(x))
-        bound = math.sqrt(2.0 / (x * self.in_channels))
         dists = {'weight_prior': GaussianMixture(sigma1=0.1, sigma2=0.0005, pi=0.75),
                  'weight_posterior': DiagonalNormal(mean=torch.Tensor(self.out_channels,
                                                                       self.in_channels,
-                                                                      *self.kernel_size).uniform_(-bound, bound),
+                                                                      *self.kernel_size).normal_(0, 0.1),
                                                     rho=torch.Tensor(self.out_channels,
                                                                      self.in_channels,
-                                                                     *self.kernel_size).normal_(-9, 0.001))}
+                                                                     *self.kernel_size).normal_(-5, 0.1))}
         if self.bias:
             dists['bias_prior'] = GaussianMixture(sigma1=0.1, sigma2=0.0005, pi=0.75)
-            dists['bias_posterior'] = DiagonalNormal(mean=torch.Tensor(self.out_channels).uniform_(-0.01, 0.01),
-                                                     rho=torch.Tensor(self.out_channels).normal_(-9, 0.001))
+            dists['bias_posterior'] = DiagonalNormal(mean=torch.Tensor(self.out_channels).normal_(0, 0.1),
+                                                     rho=torch.Tensor(self.out_channels).normal_(-5, 0.1))
 
         # specify all distributions that are not given by the user as the default distribution
         for d in dists:

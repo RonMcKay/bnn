@@ -1,3 +1,11 @@
+"""
+The following repositories were partly a basis for this package:
+
+https://github.com/JavierAntoran/Bayesian-Neural-Networks
+https://github.com/kumar-shridhar/PyTorch-BayesianCNN
+
+"""
+
 import torch
 import torch.nn as nn
 from collections import OrderedDict
@@ -5,15 +13,11 @@ import logging
 import operator
 from itertools import islice
 
-from bnn.utils.priors import PriorDistribution
-from bnn.utils.priors import DiagonalNormal as PriorNormal
-from bnn.utils.posteriors import VariationalDistribution
-from bnn.utils.posteriors import DiagonalNormal
-
-
-class BayesianLayer(nn.Module):
-    def __init__(self):
-        super().__init__()
+from bnn import BayesianLayer
+from bnn.distributions.priors import PriorDistribution
+from bnn.distributions.priors import DiagonalNormal as PriorNormal
+from bnn.distributions.posteriors import VariationalDistribution
+from bnn.distributions.posteriors import DiagonalNormal
 
 
 class Sequential(nn.Module):
@@ -45,7 +49,7 @@ class Sequential(nn.Module):
         key = self._get_item_by_idx(self._modules.keys(), idx)
         return setattr(self, key, module)
 
-    def _delitem__(self, idx):
+    def __delitem__(self, idx):
         if isinstance(idx, slice):
             for key in list(self._modules.keys())[idx]:
                 delattr(self, key)
@@ -82,6 +86,9 @@ class KLLoss(nn.Module):
         self.log.debug('Initialized Kullback-Leibler loss')
 
     def forward(self, outputs, target, kl, batch_weight, **kwargs):
+        # for ways of setting batch_weight see e.g. 'get_beta' in
+        # https://github.com/kumar-shridhar/PyTorch-BayesianCNN/blob/master/metrics.py
+
         loss = []
         # first dimension is number of samples drawn
         # this is why we have to iterate over it to apply the likelihood cost to each sample

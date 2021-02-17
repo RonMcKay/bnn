@@ -25,12 +25,12 @@ class DiagonalNormal(VariationalDistribution):
         self.log = logging.getLogger(__name__[:__name__.rfind('.')] + '.' + type(self).__name__)
         self.mean = mean
         self.rho = rho
+        self.last_mean = None
+        self.last_rho = None
         if not static:
             self.mean = nn.Parameter(mean)
             self.rho = nn.Parameter(rho)
-        else:
-            self.last_mean = None
-            self.last_rho = None
+
 
     def sample(self, **kwargs):
         mean, rho = self.get_params(**kwargs)
@@ -74,12 +74,12 @@ class Uniform(VariationalDistribution):
         self.log = logging.getLogger(__name__)
         self.lower_bound = lower_bound
         self.upper_bound = upper_bound
+        self.last_lower_bound = None
+        self.last_upper_bound = None
         if not static:
             self.lower_bound = nn.Parameter(self.lower_bound)
             self.upper_bound = nn.Parameter(self.upper_bound)
-        else:
-            self.last_lower_bound = None
-            self.last_upper_bound = None
+
 
     def sample(self, **kwargs):
         lower_bound, upper_bound = self.get_params(**kwargs)

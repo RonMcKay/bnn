@@ -8,9 +8,11 @@ from torch.cuda._utils import _get_device_index
 import torch.cuda.comm as comm
 import torch.nn.functional as F
 from torch.nn.parameter import Parameter
-from bnn.utils import KLLoss
 import logging
 import warnings
+from typing import Sequence, Optional, Callable, Union
+
+from bnn.utils.general import KLLoss
 
 
 def get_entropy(input, dim=1):
@@ -20,10 +22,19 @@ def get_entropy(input, dim=1):
 
 
 class BayesNetWrapper(object):
-    def __init__(self, net, cuda=True, parallel=False, device_ids=None, output_device=None,
-                 learning_rate=1e-4, scheduling=False,
-                 crit=KLLoss(ignore_index=-100, weight=None, reduction='sum'), weight_decay=0,
-                 task='classification'):
+    def __init__(self,
+                 net: nn.Module,
+                 cuda: bool = True,
+                 parallel: bool = False,
+                 device_ids: Optional[Sequence[int]] = None,
+                 output_device: Optional[int] = None,
+                 learning_rate: float = 1e-4,
+                 scheduling: bool = False,
+                 crit: Callable[[torch.Tensor, torch.Tensor, torch.Tensor,
+                                 Union[torch.Tensor, float, int]], torch.Tensor] = KLLoss(ignore_index=-100,
+                                                                                          weight=None, reduction='sum'),
+                 weight_decay: float = .0,
+                 task: str = 'classification'):
         super().__init__()
         self.log = logging.getLogger(__name__ + '.BayesNetWrapper')
         self.net = net
@@ -36,7 +47,7 @@ class BayesNetWrapper(object):
             raise ValueError('Expected task to be one of [' + ','.join(possible_tasks) + '], but received ' + task)
         self.task = task
         if cuda:
-            self.cuda()
+            self.cuda(device=device_ids[0] if device_ids is not None else None)
         if parallel:
             self.parallel(device_ids, output_device)
 
@@ -45,7 +56,6 @@ class BayesNetWrapper(object):
 
     def fit(self, x, y, batch_weight, samples=1, **kwargs):
         self.net.train()
-        self.scheduler.step()
         self.optimizer.zero_grad()
         if self.is_cuda:
             x, y = x.cuda(), y.cuda()
@@ -111,26 +121,26 @@ class BayesNetWrapper(object):
                 pred = outputs.argmax(1)
                 uncertainty = get_entropy(outputs)
                 epistemic_uncertainty = uncertainty - aleatoric_uncertainty
-                return pred, aleatoric_uncertainty, epistemic_uncertainty, *add_outs
+                return (pred, aleatoric_uncertainty, epistemic_uncertainty, *add_outs)
             elif self.task == 'regression':
                 pred = outputs.mean(0)
                 uncertainty = outputs.std(0)
-                return pred, uncertainty, *add_outs
+                return (pred, uncertainty, *add_outs)
 
     def _init_optimizer(self, weight_decay, scheduling):
         self.optimizer = optim.Adam(self.net.parameters(), lr=self.lr, weight_decay=weight_decay)
 
         if scheduling:
-            self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=50, gamma=0.1)
+            self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=100, gamma=0.1)
         else:
-            self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=50, gamma=1.0)
+            self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=100, gamma=1.0)
 
-    def cuda(self):
+    def cuda(self, device=None):
         if not torch.cuda.is_available():
             self.log.error('There is no cuda device available.')
             raise ConnectionAbortedError('There is no cuda device available.')
         self.log.debug('Moving model to gpu')
-        self.net = self.net.cuda()
+        self.net = self.net.cuda(device=device)
         self.is_cuda = True
 
     def cpu(self):

@@ -1,2 +1,2 @@
-from bnn.utils.general import KLLoss
-from bnn.utils.bayesnet import BayesNetWrapper
+from .general import KLLoss, kldivergence, Sequential
+from .bayesnet import BayesNetWrapper, ParallelSamplingWrapper
