@@ -20,7 +20,7 @@ from bnn.distributions.posteriors import VariationalDistribution
 from bnn.distributions.posteriors import DiagonalNormal
 
 
-class Sequential(nn.Module):
+class Sequential(BayesianLayer):
     def __init__(self, *args):
         super().__init__()
         if len(args) == 1 and isinstance(args[0], OrderedDict):
