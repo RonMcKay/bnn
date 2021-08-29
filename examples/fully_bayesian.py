@@ -1,10 +1,12 @@
+# Thirdparty libraries
+import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 import torchvision
 import torchvision.transforms as trans
-import numpy as np
 
+# Firstparty libraries
 import bnn
 from bnn.utils import BayesNetWrapper
 

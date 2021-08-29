@@ -1,17 +1,21 @@
-import torch
+# Standard Library
+import logging
 import math
 import operator
-import torch.optim as optim
-import torch.nn as nn
-from torch.nn.parallel import replicate, parallel_apply, scatter
+from typing import Callable, Optional, Sequence, Union
+import warnings
+
+# Thirdparty libraries
+import torch
 from torch.cuda._utils import _get_device_index
 import torch.cuda.comm as comm
+import torch.nn as nn
 import torch.nn.functional as F
+from torch.nn.parallel import parallel_apply, replicate, scatter
 from torch.nn.parameter import Parameter
-import logging
-import warnings
-from typing import Sequence, Optional, Callable, Union
+import torch.optim as optim
 
+# Firstparty libraries
 from bnn.utils.general import KLLoss
 
 
@@ -186,7 +190,7 @@ class BayesNetWrapper(object):
 
                 if own_state[name].shape[:] != param.shape[:]:
                     self.log.warning(
-                        'For {} no parameters have been loaded as the saved parameter shape does not match!' \
+                        'For {} no parameters have been loaded as the saved parameter shape does not match!'
                             .format(name))
                     continue
                 own_state[name].copy_(param)

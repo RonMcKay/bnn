@@ -1,8 +1,11 @@
-import torch
-import torch.nn.functional as F
-import torch.nn as nn
-import math
+# Standard Library
 import logging
+import math
+
+# Thirdparty libraries
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
 
 class VariationalDistribution(nn.Module):
@@ -30,7 +33,6 @@ class DiagonalNormal(VariationalDistribution):
         if not static:
             self.mean = nn.Parameter(mean)
             self.rho = nn.Parameter(rho)
-
 
     def sample(self, **kwargs):
         mean, rho = self.get_params(**kwargs)
@@ -80,7 +82,6 @@ class Uniform(VariationalDistribution):
             self.lower_bound = nn.Parameter(self.lower_bound)
             self.upper_bound = nn.Parameter(self.upper_bound)
 
-
     def sample(self, **kwargs):
         lower_bound, upper_bound = self.get_params(**kwargs)
         return torch.rand_like(lower_bound).mul(upper_bound - lower_bound).add(lower_bound)
@@ -109,9 +110,9 @@ class Uniform(VariationalDistribution):
         log_prob = torch.zeros_like(pdf)
         log_prob[1 - mask] = pdf[1 - mask].log()
         if mask.sum() > 0:
-            self.log.error('Encountered values outside of distribution. ' \
+            self.log.error('Encountered values outside of distribution. '
                            + 'Can not compute log_prob.')
-            raise ValueError('Encountered values outside of distribution. ' \
+            raise ValueError('Encountered values outside of distribution. '
                              + 'Can not compute log_prob.')
         return log_prob
 

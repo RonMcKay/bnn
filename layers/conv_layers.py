@@ -1,15 +1,16 @@
-import torch
-import math
-import torch.nn as nn
-import torch.nn.functional as F
-from torch.nn.modules.utils import _single, _pair
+# Standard Library
 import logging
 
+# Thirdparty libraries
+import torch
+import torch.nn.functional as F
+from torch.nn.modules.utils import _pair, _single
+
+# Firstparty libraries
 from bnn import BayesianLayer
-from bnn.utils import kldivergence
-from bnn.distributions.priors import GaussianMixture
-from bnn.distributions.posteriors import VariationalDistribution
 from bnn.distributions.posteriors import DiagonalNormal
+from bnn.distributions.priors import GaussianMixture
+from bnn.utils import kldivergence
 
 
 class _BConvNd(BayesianLayer):
@@ -82,7 +83,7 @@ class _BConvNd(BayesianLayer):
 class BConv1d(_BConvNd):
     """Applies a 1d Bayesian convolution over an input signal composed of several input planes.
     All Parameters are the same as in the standard pytorch convolution operators, except:
-    
+
     Args:
         weight_prior (nn.Module): Module that has a log_prob function to get logarithmic probabilities. Parameters
                                   should be registered as buffers in order to not optimize them. If ``None``, takes
@@ -98,7 +99,7 @@ class BConv1d(_BConvNd):
         bias_posterior (VariationalDistribution): Variational Distribution of the weights to approximate the real
                                                   Posterior Distribution. If ``None``, takes a diagonal gaussian
                                                   distribution as variational distribution. Default: ``None``
-        
+
     """
 
     def __init__(self, in_channels, out_channels, kernel_size,
@@ -136,7 +137,7 @@ class BConv1d(_BConvNd):
 class BConv2d(_BConvNd):
     """Applies a 2d Bayesian convolution over an input signal composed of several input planes.
     All Parameters are the same as in the standard pytorch convolution operators, except:
-    
+
     Args:
         weight_prior (nn.Module): Module that has a log_prob function to get logarithmic probabilities. Parameters
                                   should be registered as buffers in order to not optimize them. If ``None``, takes

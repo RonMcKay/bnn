@@ -1,23 +1,18 @@
-"""
-The following repositories were partly a basis for this package:
-
-https://github.com/JavierAntoran/Bayesian-Neural-Networks
-https://github.com/kumar-shridhar/PyTorch-BayesianCNN
-
-"""
-
-import torch
-import torch.nn as nn
+# Standard Library
 from collections import OrderedDict
+from itertools import islice
 import logging
 import operator
-from itertools import islice
 
+# Thirdparty libraries
+import torch
+import torch.nn as nn
+
+# Firstparty libraries
 from bnn import BayesianLayer
-from bnn.distributions.priors import PriorDistribution
+from bnn.distributions.posteriors import DiagonalNormal, VariationalDistribution
 from bnn.distributions.priors import DiagonalNormal as PriorNormal
-from bnn.distributions.posteriors import VariationalDistribution
-from bnn.distributions.posteriors import DiagonalNormal
+from bnn.distributions.priors import PriorDistribution
 
 
 class Sequential(BayesianLayer):
