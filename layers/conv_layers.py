@@ -58,13 +58,16 @@ class _BConvNd(BayesianLayer):
 
     def _init_default_distributions(self):
         # specify default priors and variational posteriors
-        dists = {'weight_prior': GaussianMixture(sigma1=0.1, sigma2=0.0005, pi=0.75),
-                 'weight_posterior': DiagonalNormal(mean=torch.Tensor(self.out_channels,
-                                                                      self.in_channels,
-                                                                      *self.kernel_size).normal_(0, 0.1),
-                                                    rho=torch.Tensor(self.out_channels,
-                                                                     self.in_channels,
-                                                                     *self.kernel_size).normal_(-5, 0.1))}
+        dists = {
+            'weight_prior': GaussianMixture(sigma1=0.1, sigma2=0.0005, pi=0.75),
+            'weight_posterior': DiagonalNormal(
+                mean=torch.Tensor(self.out_channels if not self.transposed else self.in_channels,
+                                  self.in_channels if not self.transposed else self.out_channels,
+                                  *self.kernel_size).normal_(0, 0.1),
+                rho=torch.Tensor(self.out_channels if not self.transposed else self.in_channels,
+                                 self.in_channels if not self.transposed else self.out_channels,
+                                 *self.kernel_size).normal_(-5, 0.1))
+        }
         if self.bias:
             dists['bias_prior'] = GaussianMixture(sigma1=0.1, sigma2=0.0005, pi=0.75)
             dists['bias_posterior'] = DiagonalNormal(mean=torch.Tensor(self.out_channels).normal_(0, 0.1),
@@ -183,6 +186,119 @@ class BConv2d(_BConvNd):
 
         out = F.conv2d(x, weight=weights, bias=bias,
                        stride=self.stride, padding=self.padding, dilation=self.dilation, groups=self.groups)
+
+        kl = kldivergence(self.weight_prior, self.weight_posterior, weights)
+
+        if self.bias:
+            kl = kl + kldivergence(self.bias_prior, self.bias_posterior, bias)
+
+        return out, kl
+
+
+class _BConvTransposeNd(_BConvNd):
+    def __init__(self, in_channels, out_channels, kernel_size,
+                 weight_prior, weight_posterior, bias_prior, bias_posterior,
+                 stride, padding, dilation, transposed, output_padding, groups,
+                 bias):
+        super().__init__(
+            in_channels,
+            out_channels,
+            kernel_size,
+            weight_prior,
+            weight_posterior,
+            bias_prior,
+            bias_posterior,
+            stride,
+            padding,
+            dilation,
+            transposed,
+            output_padding,
+            groups,
+            bias
+        )
+
+
+class BConvTranspose1d(_BConvTransposeNd):
+    def __init__(self, in_channels, out_channels, kernel_size,
+                 weight_prior=None, weight_posterior=None, bias_prior=None, bias_posterior=None,
+                 stride=1, padding=0, dilation=1, groups=1,
+                 bias=True):
+        kernel_size = _single(kernel_size)
+        stride = _single(stride)
+        padding = _single(padding)
+        dilation = _single(dilation)
+        super().__init__(
+            in_channels,
+            out_channels,
+            kernel_size,
+            weight_prior,
+            weight_posterior,
+            bias_prior,
+            bias_posterior,
+            stride,
+            padding,
+            dilation,
+            True,
+            _single(0),
+            groups,
+            bias
+        )
+
+    def forward(self, x, **kwargs):
+        weights = self.weight_posterior.sample()
+
+        if self.bias:
+            bias = self.bias_posterior.sample()
+        else:
+            bias = None
+
+        out = F.conv_transpose1d(x, weight=weights, bias=bias,
+                                 stride=self.stride, padding=self.padding, dilation=self.dilation, groups=self.groups)
+
+        kl = kldivergence(self.weight_prior, self.weight_posterior, weights)
+
+        if self.bias:
+            kl = kl + kldivergence(self.bias_prior, self.bias_posterior, bias)
+
+        return out, kl
+
+
+class BConvTranspose2d(_BConvTransposeNd):
+    def __init__(self, in_channels, out_channels, kernel_size,
+                 weight_prior=None, weight_posterior=None, bias_prior=None, bias_posterior=None,
+                 stride=1, padding=0, dilation=1, groups=1,
+                 bias=True):
+        kernel_size = _pair(kernel_size)
+        stride = _pair(stride)
+        padding = _pair(padding)
+        dilation = _pair(dilation)
+        super().__init__(
+            in_channels,
+            out_channels,
+            kernel_size,
+            weight_prior,
+            weight_posterior,
+            bias_prior,
+            bias_posterior,
+            stride,
+            padding,
+            dilation,
+            True,
+            _pair(0),
+            groups,
+            bias
+        )
+
+    def forward(self, x, **kwargs):
+        weights = self.weight_posterior.sample()
+
+        if self.bias:
+            bias = self.bias_posterior.sample()
+        else:
+            bias = None
+
+        out = F.conv_transpose2d(x, weight=weights, bias=bias,
+                                 stride=self.stride, padding=self.padding, dilation=self.dilation, groups=self.groups)
 
         kl = kldivergence(self.weight_prior, self.weight_posterior, weights)
 
