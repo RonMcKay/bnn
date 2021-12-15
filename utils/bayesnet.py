@@ -19,10 +19,10 @@ import torch.optim as optim
 from bnn.utils.general import KLLoss
 
 
-def get_entropy(input, dim=1):
-    entropy = (input * input.log())
-    entropy[torch.isnan(entropy)] = 0.0
-    return entropy.sum(dim).neg()
+def entropy(input, dim=1, eps=1e-16):
+    input = input + eps
+    entropy = (input * input.log()).sum(dim).div(torch.log(torch.tensor(input.shape[dim]))).neg()
+    return entropy
 
 
 class BayesNetWrapper(object):
@@ -120,10 +120,10 @@ class BayesNetWrapper(object):
 
             if self.task == 'classification':
                 outputs = F.softmax(outputs, 2)
-                aleatoric_uncertainty = get_entropy(outputs, dim=2).mean(0)
+                aleatoric_uncertainty = entropy(outputs, dim=2).mean(0)
                 outputs = outputs.mean(0)
                 pred = outputs.argmax(1)
-                uncertainty = get_entropy(outputs)
+                uncertainty = entropy(outputs)
                 epistemic_uncertainty = uncertainty - aleatoric_uncertainty
                 return (pred, aleatoric_uncertainty, epistemic_uncertainty, *add_outs)
             elif self.task == 'regression':
