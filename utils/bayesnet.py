@@ -21,7 +21,7 @@ from bnn.utils.general import KLLoss
 
 def entropy(input, dim=1, eps=1e-16):
     input = input + eps
-    entropy = (input * input.log()).sum(dim).div(torch.log(torch.tensor(input.shape[dim]))).neg()
+    entropy = (input * input.log()).sum(dim).div(torch.log(torch.tensor(input.shape[dim], dtype=torch.float))).neg()
     return entropy
 
 
