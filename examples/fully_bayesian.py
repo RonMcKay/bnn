@@ -1,10 +1,12 @@
+# Thirdparty libraries
+import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 import torchvision
 import torchvision.transforms as trans
-import numpy as np
 
+# Firstparty libraries
 import bnn
 from bnn.utils import BayesNetWrapper
 
@@ -108,7 +110,7 @@ def main():
         # Validation Phase
         for x, y in val_loader:
             pred, ae, eu, kl = net_wrapper.predict(x)
-            avg_val_acc += (pred == y).float().mean().item()
+            avg_val_acc += (pred.argmax(1) == y).float().mean().item()
         avg_val_acc /= len(val_loader)
 
         print("Epoch {:>3} / {:>3} --- Training: {:>10.2f} / {:.2%} --- Validation: {:.2%}".format(

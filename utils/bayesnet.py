@@ -1,17 +1,21 @@
-import torch
+# Standard Library
+import logging
 import math
 import operator
-import torch.optim as optim
-import torch.nn as nn
-from torch.nn.parallel import replicate, parallel_apply, scatter
+from typing import Callable, Optional, Sequence, Union
+import warnings
+
+# Thirdparty libraries
+import torch
 from torch.cuda._utils import _get_device_index
 import torch.cuda.comm as comm
+import torch.nn as nn
 import torch.nn.functional as F
+from torch.nn.parallel import parallel_apply, replicate, scatter
 from torch.nn.parameter import Parameter
-import logging
-import warnings
-from typing import Sequence, Optional, Callable, Union
+import torch.optim as optim
 
+# Firstparty libraries
 from bnn.utils.general import KLLoss
 
 
@@ -118,10 +122,9 @@ class BayesNetWrapper(object):
                 outputs = F.softmax(outputs, 2)
                 aleatoric_uncertainty = get_entropy(outputs, dim=2).mean(0)
                 outputs = outputs.mean(0)
-                pred = outputs.argmax(1)
                 uncertainty = get_entropy(outputs)
                 epistemic_uncertainty = uncertainty - aleatoric_uncertainty
-                return (pred, aleatoric_uncertainty, epistemic_uncertainty, *add_outs)
+                return (outputs, aleatoric_uncertainty, epistemic_uncertainty, *add_outs)
             elif self.task == 'regression':
                 pred = outputs.mean(0)
                 uncertainty = outputs.std(0)
@@ -186,8 +189,8 @@ class BayesNetWrapper(object):
 
                 if own_state[name].shape[:] != param.shape[:]:
                     self.log.warning(
-                        'For {} no parameters have been loaded as the saved parameter shape does not match!' \
-                            .format(name))
+                        f'For {name} no parameters have been loaded as the saved parameter shape does not match!'
+                    )
                     continue
                 own_state[name].copy_(param)
         self.log.debug('Model loaded from \'{}\''.format(filename))
