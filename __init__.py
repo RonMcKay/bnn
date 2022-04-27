@@ -6,5 +6,5 @@ class BayesianLayer(nn.Module):
         super().__init__()
 
 
-from .utils import KLLoss, Sequential  # noqa: F401
+from .utils import KLLoss, Sequential, BayesNetWrapper  # noqa: F401
 from .layers import BLinear, BConv1d, BConv2d, BConvTranspose1d, BConvTranspose2d  # noqa: F401
