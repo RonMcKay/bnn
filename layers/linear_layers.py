@@ -1,13 +1,15 @@
-import math
-import torch
-import torch.nn.functional as F
-import torch.nn as nn
+# Standard Library
 import logging
 
+# Thirdparty libraries
+import torch
+import torch.nn.functional as F
+
+# Firstparty libraries
 from bnn import BayesianLayer
-from bnn.utils import kldivergence
 from bnn.distributions.posteriors import DiagonalNormal
 from bnn.distributions.priors import GaussianMixture
+from bnn.utils import kldivergence
 
 
 class BLinear(BayesianLayer):

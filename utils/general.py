@@ -1,23 +1,18 @@
-"""
-The following repositories were partly a basis for this package:
-
-https://github.com/JavierAntoran/Bayesian-Neural-Networks
-https://github.com/kumar-shridhar/PyTorch-BayesianCNN
-
-"""
-
-import torch
-import torch.nn as nn
+# Standard Library
 from collections import OrderedDict
+from itertools import islice
 import logging
 import operator
-from itertools import islice
 
+# Thirdparty libraries
+import torch
+import torch.nn as nn
+
+# Firstparty libraries
 from bnn import BayesianLayer
-from bnn.distributions.priors import PriorDistribution
+from bnn.distributions.posteriors import DiagonalNormal, VariationalDistribution
 from bnn.distributions.priors import DiagonalNormal as PriorNormal
-from bnn.distributions.posteriors import VariationalDistribution
-from bnn.distributions.posteriors import DiagonalNormal
+from bnn.distributions.priors import PriorDistribution
 
 
 class Sequential(BayesianLayer):
@@ -77,12 +72,10 @@ class Sequential(BayesianLayer):
 
 
 class KLLoss(nn.Module):
-    def __init__(self, ignore_index=-100, weight=None, reduction='sum', likelihood_cost=nn.CrossEntropyLoss):
+    def __init__(self, likelihood_cost=nn.CrossEntropyLoss(ignore_index=-100, weight=None, reduction='sum')):
         super().__init__()
         self.log = logging.getLogger(__name__ + '.KLLoss')
-        self.likelihood_cost = likelihood_cost(reduction=reduction,
-                                               ignore_index=ignore_index,
-                                               weight=weight)
+        self.likelihood_cost = likelihood_cost
         self.log.debug('Initialized Kullback-Leibler loss')
 
     def forward(self, outputs, target, kl, batch_weight, **kwargs):

@@ -1,5 +1,8 @@
-import torch
+# Standard Library
 import math
+
+# Thirdparty libraries
+import torch
 import torch.nn as nn
 
 
