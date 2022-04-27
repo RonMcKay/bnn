@@ -5,6 +5,9 @@ import operator
 from typing import Callable, Optional, Sequence, Union
 import warnings
 
+# Firstparty libraries
+from bnn.utils.general import KLLoss
+
 # Thirdparty libraries
 import torch
 from torch.cuda._utils import _get_device_index
@@ -15,40 +18,55 @@ from torch.nn.parallel import parallel_apply, replicate, scatter
 from torch.nn.parameter import Parameter
 import torch.optim as optim
 
-# Firstparty libraries
-from bnn.utils.general import KLLoss
-
 
 def entropy(input, dim=1, eps=1e-16):
     input = input + eps
-    entropy = (input * input.log()).sum(dim).div(torch.log(torch.tensor(input.shape[dim], dtype=torch.float))).neg()
+    entropy = (
+        (input * input.log())
+        .sum(dim)
+        .div(torch.log(torch.tensor(input.shape[dim], dtype=torch.float)))
+        .neg()
+    )
     return entropy
 
 
 class BayesNetWrapper(object):
-    def __init__(self,
-                 net: nn.Module,
-                 cuda: bool = True,
-                 parallel: bool = False,
-                 device_ids: Optional[Sequence[int]] = None,
-                 output_device: Optional[int] = None,
-                 learning_rate: float = 1e-4,
-                 scheduling: bool = False,
-                 crit: Callable[[torch.Tensor, torch.Tensor, torch.Tensor,
-                                 Union[torch.Tensor, float, int]], torch.Tensor] = KLLoss(ignore_index=-100,
-                                                                                          weight=None, reduction='sum'),
-                 weight_decay: float = .0,
-                 task: str = 'classification'):
+    def __init__(
+        self,
+        net: nn.Module,
+        cuda: bool = True,
+        parallel: bool = False,
+        device_ids: Optional[Sequence[int]] = None,
+        output_device: Optional[int] = None,
+        learning_rate: float = 1e-4,
+        scheduling: bool = False,
+        crit: Callable[
+            [torch.Tensor, torch.Tensor, torch.Tensor, Union[torch.Tensor, float, int]],
+            torch.Tensor,
+        ] = KLLoss(),
+        weight_decay: float = 0.0,
+        task: str = "classification",
+    ):
         super().__init__()
-        self.log = logging.getLogger(__name__ + '.BayesNetWrapper')
+        self.log = logging.getLogger(__name__ + ".BayesNetWrapper")
         self.net = net
         self.is_cuda = cuda
         self.is_parallel = parallel
         self.lr = learning_rate
-        possible_tasks = ['classification', 'regression']
+        possible_tasks = ["classification", "regression"]
         if task not in possible_tasks:
-            self.log.error('Expected task to be one of [' + ','.join(possible_tasks) + '], but received ' + task)
-            raise ValueError('Expected task to be one of [' + ','.join(possible_tasks) + '], but received ' + task)
+            self.log.error(
+                "Expected task to be one of ["
+                + ",".join(possible_tasks)
+                + "], but received "
+                + task
+            )
+            raise ValueError(
+                "Expected task to be one of ["
+                + ",".join(possible_tasks)
+                + "], but received "
+                + task
+            )
         self.task = task
         if cuda:
             self.cuda(device=device_ids[0] if device_ids is not None else None)
@@ -79,16 +97,16 @@ class BayesNetWrapper(object):
         loss.backward()
         self.optimizer.step()
 
-        if self.task == 'classification':
+        if self.task == "classification":
             pred = F.softmax(outputs.data.cpu(), 2).mean(0).argmax(1)
             acc = (pred == y.cpu()).float().mean().item()
-        elif self.task == 'regression':
+        elif self.task == "regression":
             acc = 0
 
-        if '_run' in kwargs:
+        if "_run" in kwargs:
             # automatic logging for sacred users if _run instance is supplied
-            kwargs['_run'].log_scalar('batch.loss', loss.item())
-            kwargs['_run'].log_scalar('batch.accuracy', acc)
+            kwargs["_run"].log_scalar("batch.loss", loss.item())
+            kwargs["_run"].log_scalar("batch.accuracy", acc)
 
         return loss.item(), acc
 
@@ -112,56 +130,65 @@ class BayesNetWrapper(object):
                 outputs = torch.stack(outputs)
                 add_outs = []
                 for i in range(len(additional_outputs[0])):
-                    add_outs.append(torch.stack([j[i] for j in additional_outputs]).mean(0))
+                    add_outs.append(
+                        torch.stack([j[i] for j in additional_outputs]).mean(0)
+                    )
             else:
                 outputs, _ = self.net(x, samples=samples)
                 if return_on_cpu:
                     outputs = outputs.data.cpu()
 
-            if self.task == 'classification':
+            if self.task == "classification":
                 outputs = F.softmax(outputs, 2)
                 aleatoric_uncertainty = entropy(outputs, dim=2).mean(0)
                 outputs = outputs.mean(0)
-                pred = outputs.argmax(1)
                 uncertainty = entropy(outputs)
                 epistemic_uncertainty = uncertainty - aleatoric_uncertainty
-                return (pred, aleatoric_uncertainty, epistemic_uncertainty, *add_outs)
-            elif self.task == 'regression':
+                return (outputs, aleatoric_uncertainty, epistemic_uncertainty, *add_outs)
+            elif self.task == "regression":
                 pred = outputs.mean(0)
                 uncertainty = outputs.std(0)
                 return (pred, uncertainty, *add_outs)
 
     def _init_optimizer(self, weight_decay, scheduling):
-        self.optimizer = optim.Adam(self.net.parameters(), lr=self.lr, weight_decay=weight_decay)
+        self.optimizer = optim.Adam(
+            self.net.parameters(), lr=self.lr, weight_decay=weight_decay
+        )
 
         if scheduling:
-            self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=100, gamma=0.1)
+            self.scheduler = torch.optim.lr_scheduler.StepLR(
+                self.optimizer, step_size=100, gamma=0.1
+            )
         else:
-            self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=100, gamma=1.0)
+            self.scheduler = torch.optim.lr_scheduler.StepLR(
+                self.optimizer, step_size=100, gamma=1.0
+            )
 
     def cuda(self, device=None):
         if not torch.cuda.is_available():
-            self.log.error('There is no cuda device available.')
-            raise ConnectionAbortedError('There is no cuda device available.')
-        self.log.debug('Moving model to gpu')
+            self.log.error("There is no cuda device available.")
+            raise ConnectionAbortedError("There is no cuda device available.")
+        self.log.debug("Moving model to gpu")
         self.net = self.net.cuda(device=device)
         self.is_cuda = True
 
     def cpu(self):
-        self.log.debug('Moving model to cpu')
+        self.log.debug("Moving model to cpu")
         self.net = self.net.cpu()
         self.is_cuda = False
 
     def sequential(self):
         if isinstance(self.net, ParallelSamplingWrapper):
-            self.log.debug('Model is getting serialized')
+            self.log.debug("Model is getting serialized")
             self.net = self.net.module
             self.is_parallel = False
 
     def parallel(self, device_ids, output_device):
         if not isinstance(self.net, ParallelSamplingWrapper):
-            self.log.debug('Model is getting parallelized')
-            self.net = ParallelSamplingWrapper(self.net, device_ids=device_ids, output_device=output_device)
+            self.log.debug("Model is getting parallelized")
+            self.net = ParallelSamplingWrapper(
+                self.net, device_ids=device_ids, output_device=output_device
+            )
             self.is_parallel = True
 
     def save(self, filename):
@@ -169,32 +196,21 @@ class BayesNetWrapper(object):
             torch.save(self.net.state_dict(), filename)
         else:
             torch.save(self.net.module.state_dict(), filename)
-        self.log.debug('Model saved to \'{}\''.format(filename))
+        self.log.debug("Model saved to '{}'".format(filename))
 
-    def load(self, filename, use_list=None):
+    def load(self, filename):
         if not self.is_parallel:
-            own_state = self.net.state_dict()
+            self.net.load_state_dict(
+                torch.load(
+                    filename, map_location=None if self.is_cuda else torch.device("cpu")
+                )
+            )
         else:
-            own_state = self.net.module.state_dict()
-
-        model_parameters = torch.load(filename)
-
-        for name in model_parameters.keys():
-            if use_list is not None:
-                if name not in use_list:
-                    continue
-            if name in own_state:
-                param = model_parameters[name]
-                if isinstance(param, Parameter):
-                    param = param.data
-
-                if own_state[name].shape[:] != param.shape[:]:
-                    self.log.warning(
-                        'For {} no parameters have been loaded as the saved parameter shape does not match!'
-                            .format(name))
-                    continue
-                own_state[name].copy_(param)
-        self.log.debug('Model loaded from \'{}\''.format(filename))
+            self.net.module.load_state_dict(
+                torch.load(
+                    filename, map_location=None if self.is_cuda else torch.device("cpu")
+                )
+            )
 
 
 class ParallelSamplingWrapper(nn.Module):
@@ -232,8 +248,8 @@ class ParallelSamplingWrapper(nn.Module):
         return self.sample(replicas, inputs, kwargs)
 
     def sample(self, replicas, inputs, kwargs):
-        if 'samples' in kwargs:
-            samples = kwargs['samples']
+        if "samples" in kwargs:
+            samples = kwargs["samples"]
         else:
             samples = len(self.device_ids)
         outputs = []
@@ -260,7 +276,9 @@ class ParallelSamplingWrapper(nn.Module):
         return replicate(module, device_ids)
 
     def parallel_apply(self, replicas, inputs, kwargs):
-        return parallel_apply(replicas, inputs, kwargs, self.device_ids[:len(replicas)])
+        return parallel_apply(
+            replicas, inputs, kwargs, self.device_ids[: len(replicas)]
+        )
 
     def gather(self, outputs, output_device):
         return comm.gather(outputs, dim=self.dim, destination=output_device)
@@ -280,7 +298,9 @@ def _check_balance(device_ids):
         min_pos, min_val = min(enumerate(values), key=operator.itemgetter(1))
         max_pos, max_val = max(enumerate(values), key=operator.itemgetter(1))
         if min_val / max_val < 0.75:
-            warnings.warn(imbalance_warn.format(device_ids[min_pos], device_ids[max_pos]))
+            warnings.warn(
+                imbalance_warn.format(device_ids[min_pos], device_ids[max_pos])
+            )
             return True
         return False
 

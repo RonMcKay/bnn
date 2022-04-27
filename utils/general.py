@@ -72,12 +72,10 @@ class Sequential(BayesianLayer):
 
 
 class KLLoss(nn.Module):
-    def __init__(self, ignore_index=-100, weight=None, reduction='sum', likelihood_cost=nn.CrossEntropyLoss):
+    def __init__(self, likelihood_cost=nn.CrossEntropyLoss(ignore_index=-100, weight=None, reduction='sum')):
         super().__init__()
         self.log = logging.getLogger(__name__ + '.KLLoss')
-        self.likelihood_cost = likelihood_cost(reduction=reduction,
-                                               ignore_index=ignore_index,
-                                               weight=weight)
+        self.likelihood_cost = likelihood_cost
         self.log.debug('Initialized Kullback-Leibler loss')
 
     def forward(self, outputs, target, kl, batch_weight, **kwargs):
