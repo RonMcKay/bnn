@@ -6,6 +6,12 @@
 
 An implementation of bayesian neural networks which I use for research purposes.
 
+Installation:
+
+```
+pip install git+https://github.com/RonMcKay/bnn@master
+```
+
 The following repositories were partly a basis for this package:
 
 [Javier Antoran - Bayesian Neural Networks](https://github.com/JavierAntoran/Bayesian-Neural-Networks)  
