@@ -1,21 +1,16 @@
-# Standard Library
 import logging
 import math
 import operator
 from typing import Callable, Optional, Sequence, Union
 import warnings
 
-# Firstparty libraries
 from bnn.utils.general import KLLoss
-
-# Thirdparty libraries
 import torch
 from torch.cuda._utils import _get_device_index
 import torch.cuda.comm as comm
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.parallel import parallel_apply, replicate, scatter
-from torch.nn.parameter import Parameter
 import torch.optim as optim
 
 
@@ -144,7 +139,12 @@ class BayesNetWrapper(object):
                 outputs = outputs.mean(0)
                 uncertainty = entropy(outputs)
                 epistemic_uncertainty = uncertainty - aleatoric_uncertainty
-                return (outputs, aleatoric_uncertainty, epistemic_uncertainty, *add_outs)
+                return (
+                    outputs,
+                    aleatoric_uncertainty,
+                    epistemic_uncertainty,
+                    *add_outs,
+                )
             elif self.task == "regression":
                 pred = outputs.mean(0)
                 uncertainty = outputs.std(0)
