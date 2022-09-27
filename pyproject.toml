@@ -8,13 +8,13 @@ license = "MIT"
 [tool.poetry.dependencies]
 python = "^3.8"
 torch = "*"
+numpy = "*"
 
 [tool.poetry.group.examples]
 optional = true
 
 [tool.poetry.group.examples.dependencies]
 torchvision = "*"
-numpy = "*"
 
 [tool.poetry.dev-dependencies]
 black = "*"
