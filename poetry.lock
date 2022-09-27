@@ -113,7 +113,7 @@ python-versions = "*"
 name = "numpy"
 version = "1.23.3"
 description = "NumPy is the fundamental package for array computing with Python."
-category = "dev"
+category = "main"
 optional = false
 python-versions = ">=3.8"
 
@@ -244,7 +244,7 @@ socks = ["PySocks (>=1.5.6,!=1.5.7,<2.0)"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "68f8dd738cf4993a8038362ad6706c90684c621e34c15a67373fbd0dd0a6e451"
+content-hash = "05f3be553d3f621517d62bd681ccda1c2f05010e726d82e32e30f1e49d83af90"
 
 [metadata.files]
 black = [
