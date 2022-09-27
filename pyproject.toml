@@ -3,6 +3,7 @@ name = "bnn"
 version = "0.1.0"
 description = "PyTorch Bayesian Neural Networks"
 authors = ["Philipp Oberdiek <git@oberdiek.net>"]
+readme = "README.md"
 license = "MIT"
 
 [tool.poetry.dependencies]
