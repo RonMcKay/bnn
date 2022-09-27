@@ -1,18 +1,14 @@
-# Standard Library
 from collections import OrderedDict
 from itertools import islice
 import logging
 import operator
 
-# Thirdparty libraries
-import torch
-import torch.nn as nn
-
-# Firstparty libraries
 from bnn import BayesianLayer
 from bnn.distributions.posteriors import DiagonalNormal, VariationalDistribution
 from bnn.distributions.priors import DiagonalNormal as PriorNormal
 from bnn.distributions.priors import PriorDistribution
+import torch
+import torch.nn as nn
 
 
 class Sequential(BayesianLayer):
@@ -30,7 +26,7 @@ class Sequential(BayesianLayer):
         size = len(self)
         idx = operator.index(idx)
         if not -size <= idx < size:
-            raise IndexError('index {} is out of range'.format(idx))
+            raise IndexError("index {} is out of range".format(idx))
         idx %= size
         return next(islice(iterator, idx, None))
 
@@ -72,11 +68,16 @@ class Sequential(BayesianLayer):
 
 
 class KLLoss(nn.Module):
-    def __init__(self, likelihood_cost=nn.CrossEntropyLoss(ignore_index=-100, weight=None, reduction='sum')):
+    def __init__(
+        self,
+        likelihood_cost=nn.CrossEntropyLoss(
+            ignore_index=-100, weight=None, reduction="sum"
+        ),
+    ):
         super().__init__()
-        self.log = logging.getLogger(__name__ + '.KLLoss')
+        self.log = logging.getLogger(__name__ + ".KLLoss")
         self.likelihood_cost = likelihood_cost
-        self.log.debug('Initialized Kullback-Leibler loss')
+        self.log.debug("Initialized Kullback-Leibler loss")
 
     def forward(self, outputs, target, kl, batch_weight, **kwargs):
         # for ways of setting batch_weight see e.g. 'get_beta' in
@@ -84,28 +85,37 @@ class KLLoss(nn.Module):
 
         loss = []
         # first dimension is number of samples drawn
-        # this is why we have to iterate over it to apply the likelihood cost to each sample
+        # this is why we have to iterate over it to apply the
+        # likelihood cost to each sample
         for i in range(outputs.size(0)):
             loss.append(self.likelihood_cost(outputs[i], target))
         loss = torch.stack(loss).mean()
         kl_loss = batch_weight * kl
-        if '_run' in kwargs:
+        if "_run" in kwargs:
             # automatic logging for sacred users if _run instance is supplied
-            kwargs['_run'].log_scalar('train.cross_entropy', loss.item())
-            kwargs['_run'].log_scalar('train.kl_loss', kl_loss.item())
-        self.log.debug('Cross Entropy: {:.2f}, KL: {:.2f}'.format(loss.item(), kl_loss.item()))
+            kwargs["_run"].log_scalar("train.cross_entropy", loss.item())
+            kwargs["_run"].log_scalar("train.kl_loss", kl_loss.item())
+        self.log.debug(
+            "Cross Entropy: {:.2f}, KL: {:.2f}".format(loss.item(), kl_loss.item())
+        )
 
         return kl_loss + loss
 
 
-def kldivergence(prior: PriorDistribution, posterior: VariationalDistribution, sample: torch.Tensor):
+def kldivergence(
+    prior: PriorDistribution, posterior: VariationalDistribution, sample: torch.Tensor
+):
     if isinstance(prior, PriorNormal) and isinstance(posterior, DiagonalNormal):
         # calculate Kullback-Leibler Divergence in closed form
         sigma_prior = prior.get_std()
         sigma_posterior = posterior.get_std()
         mean_prior = prior.get_mean()
         mean_posterior = posterior.get_mean()
-        return (torch.log(sigma_prior / sigma_posterior) + (
-                sigma_posterior ** 2 + (mean_posterior - mean_prior) ** 2) / (2 * sigma_prior ** 2) - 0.5).sum()
+        return (
+            torch.log(sigma_prior / sigma_posterior)
+            + (sigma_posterior**2 + (mean_posterior - mean_prior) ** 2)
+            / (2 * sigma_prior**2)
+            - 0.5
+        ).sum()
     else:
         return posterior.log_prob(sample).sum() - prior.log_prob(sample).sum()
