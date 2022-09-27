@@ -1,5 +1,5 @@
 <div align="center">
-    [![](https://img.shields.io/badge/code%20style-black-black)](https://github.com/psf/black)![](https://img.shields.io/github/license/RonMcKay/bnn)
+[![](https://img.shields.io/badge/code%20style-black-black)](https://github.com/psf/black) ![](https://img.shields.io/github/license/RonMcKay/bnn) 
 </div>
 
 An implementation of bayesian neural networks which I use for research purposes.
