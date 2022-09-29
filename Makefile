@@ -6,4 +6,4 @@ test:
 	poetry run isort --check --settings-path pyproject.toml .
 
 clean:
-	rm -rf wheel sdist __pycache__ __local__storage__
+	rm -rf build sdist __pycache__ __local__storage__
