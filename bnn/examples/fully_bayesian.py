@@ -132,7 +132,7 @@ def main():
         # Validation Phase
         for x, y in val_loader:
             pred, ae, eu, kl = net_wrapper.predict(x)
-            avg_val_acc += (pred == y).float().mean().item()
+            avg_val_acc += (pred.argmax(1) == y).float().mean().item()
         avg_val_acc /= len(val_loader)
 
         print(
