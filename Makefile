@@ -11,6 +11,7 @@ pre-commit: install
 	poetry run pre-commit install -t commit-msg -t pre-commit
 
 test: test-flake8 test-black test-isort
+	@echo "All tests passed successfully!"
 
 test-flake8:
 	@echo "Checking format with flake8..."
